@@ -1,0 +1,15 @@
+S=λwyx.y(wyx);
+M=λxyz.x(yz);
+
+f0=λsz.z;
+f1=Sf0;
+f2=Sf1;
+f3=Sf2;
+f4=Sf3;
+f5=Sf4;
+f6=Sf5;
+f7=Sf6;
+
+hnfPrintSteps[200, resolve[f2Sf3]];
+hnfPrintSteps[200, resolve[S(S(S(Sf1)))]];
+hnfPrintSteps[200, (\xy.y(\z.zyz)x(\xy.x)y)(\ab.b)(\xy.y)];

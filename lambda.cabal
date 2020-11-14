@@ -1,0 +1,89 @@
+cabal-version: 1.12
+
+-- This file has been generated from package.yaml by hpack version 0.33.0.
+--
+-- see: https://github.com/sol/hpack
+--
+-- hash: 558b8dc679522ecfa2e5a648ef7a5734c1c1d6723e394728ab3830ddea8d8163
+
+name:           lambda
+version:        0.1.0.0
+description:    Please see the README on GitHub at <https://github.com/keksnicoh/lambda#readme>
+homepage:       https://github.com/githubuser/lambda#readme
+bug-reports:    https://github.com/githubuser/lambda/issues
+author:         Nicolas Heimann
+maintainer:     example@example.com
+copyright:      2020 Nicolas Heimann
+license:        BSD3
+license-file:   LICENSE
+build-type:     Simple
+extra-source-files:
+    README.md
+    ChangeLog.md
+
+source-repository head
+  type: git
+  location: https://github.com/githubuser/lambda
+
+library
+  exposed-modules:
+      Dynamic
+      Lambda
+      LangT
+      Language
+      Lib
+      Util
+  other-modules:
+      Paths_lambda
+  hs-source-dirs:
+      src
+  build-depends:
+      base >=4.7 && <5
+    , constraints
+    , containers
+    , hspec
+    , mtl
+    , parsec
+    , singletons
+    , text
+  default-language: Haskell2010
+
+executable lambda-exe
+  main-is: Main.hs
+  other-modules:
+      Paths_lambda
+  hs-source-dirs:
+      app
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , constraints
+    , containers
+    , hspec
+    , lambda
+    , mtl
+    , parsec
+    , singletons
+    , text
+  default-language: Haskell2010
+
+test-suite lambda-test
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      LambdaSpec
+      Paths_lambda
+  hs-source-dirs:
+      test
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      base >=4.7 && <5
+    , constraints
+    , containers
+    , hspec
+    , lambda
+    , mtl
+    , parsec
+    , singletons
+    , text
+  default-language: Haskell2010
