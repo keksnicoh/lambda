@@ -70,7 +70,7 @@ instance Show Exp where
 instance IsString Exp where
   fromString = Var
 
--- operations and objects from lambda calculus --------------------------------‚
+-- operations and objects from lambda calculus --------------------------------
 
 -- | single beta-reduction step (normal order reduction)
 --

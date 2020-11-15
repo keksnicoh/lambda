@@ -1,0 +1,10 @@
+a=b;
+b=d;
+
+scope[ab];
+scope[scope[ab]];
+scope[#a, ab];
+scope[{#a, #b}, ab];
+free[ab];
+scope[free[ab], ab];
+free[\x.x];

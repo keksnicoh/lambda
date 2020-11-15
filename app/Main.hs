@@ -13,7 +13,7 @@ import Language ( eval, handler, parse )
 import LangT ( LangT(runLangT) )
 
 main :: IO ()
-main = evalFile "examples/sum.txt"
+main = evalFile "examples/resolve.txt"
 
 evalFile :: FilePath -> IO ()
 evalFile filePath = do

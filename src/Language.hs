@@ -87,25 +87,29 @@ repeatExpM f a = do
     then return a
     else repeatExpM f next
 
-inFreeVars :: L.Exp -> L.Identifier -> b -> Bool
-inFreeVars expr k = const $ k `elem` L.free expr
+inFreeVars :: L.Exp -> L.Identifier -> Bool
+inFreeVars expr k = k `elem` L.free expr
 
 betan :: Int -> L.Exp -> L.Exp
 betan 0 expr = expr
 betan n expr = betan (n - 1) $ L.β expr
 
-applyScope :: MonadState Scope m => L.Exp -> m L.Exp
-applyScope expr = do
-  scope <- gets (M.filterWithKey (inFreeVars expr))
-  return $ applyScope' scope expr
+applyScope ::
+  (MonadState Scope m) =>
+  (L.Identifier -> Bool) ->
+  L.Exp ->
+  m L.Exp
+applyScope f expr = do
+  scope <- gets (M.filterWithKey (\x _ -> f x))
+  return $ go scope expr
   where
-    applyScope' scope (L.Var n) = case M.lookup n scope of
-      Just a -> a
-      Nothing -> L.Var n
-    applyScope' scope (L.App e1 e2) =
-      L.App (applyScope' scope e1) (applyScope' scope e2)
-    applyScope' scope (L.Lam n e) =
-      L.Lam n $ applyScope' (M.filterWithKey (const . (/=) n) scope) e
+    go scope (L.Var n) =
+      case M.lookup n scope of
+        Just a -> a
+        Nothing -> L.Var n
+    go scope (L.App e1 e2) = L.App (go scope e1) (go scope e2)
+    go scope (L.Lam n e) =
+      L.Lam n $ go (M.filterWithKey (const . (/=) n) scope) e
 
 hnfPrintSteps :: MonadWriter [String] m => Int -> L.Exp -> m L.Exp
 hnfPrintSteps l = hnfPrintSteps' l
@@ -182,16 +186,17 @@ expressionListΣ cont = \case
       first <- cont c
       others <- traverse cont cs
       case toListΣ (pureListΣ first) others of
-        Just result@(inferredType :&: _) -> case dtypeOpt of
-          Nothing -> pure result
-          -- if type was specified and non-empty list was evaluated, then we
-          -- will prove that inferred type matches specified type
-          Just dtype ->
-            withSomeSing dtype $ \dtypeSing ->
-              case inferredType %~ SDList dtypeSing of
-                Proved Refl -> pure result
-                Disproved _ ->
-                  throwError $ errorInferredTypeDiffers dtype inferredType
+        Just result@(inferredType :&: _) ->
+          case dtypeOpt of
+            Nothing -> pure result
+            -- if type was specified and non-empty list was evaluated, then we
+            -- will prove that inferred type matches specified type
+            Just dtype ->
+              withSomeSing dtype $ \dtypeSing ->
+                case inferredType %~ SDList dtypeSing of
+                  Proved Refl -> pure result
+                  Disproved _ ->
+                    throwError $ errorInferredTypeDiffers dtype inferredType
         Nothing -> throwError $ errorInhomogeneousList (first : others)
   where
     errorInhomogeneousList lst =
@@ -261,18 +266,46 @@ renderFunction :: String -> [DType] -> String
 renderFunction name args = name ++ "[" ++ renderArguments args ++ "]"
 
 handler ::
-  (Monad m, MonadState Scope m, MonadWriter [String] m) =>
+  (Monad m, MonadState Scope m, MonadWriter [String] m, MonadError String m) =>
   String ->
   FunctionΣ String m
 handler =
   createHandler $
     M.fromList
       -- XXX this should look more clean
-      [ ("contract", wrap (pured . functionΣ L.β) `polymorph` wrap (pured . functionΣ betan)),
-        ("hnfPrintSteps", wrap (kleisliΣ (Proxy @'[Int, L.Exp]) (Proxy @L.Exp) hnfPrintSteps)),
-        ("free", wrap (pured . functionΣ L.free)),
-        ("scope", wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) applyScope)),
-        ("resolve", wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) (repeatExpM resolve)))
+      [ ( "contract",
+          wrap (pured . functionΣ L.β)
+            `polymorph` wrap (pured . functionΣ betan)
+        ),
+        ( "hnfPrintSteps",
+          wrap (kleisliΣ (Proxy @'[Int, L.Exp]) (Proxy @L.Exp) hnfPrintSteps)
+        ),
+        ( "free",
+          wrap (pured . functionΣ L.free)
+        ),
+        ( "scope",
+          wrap
+            ( kleisliΣ
+                (Proxy @'[L.Exp])
+                (Proxy @L.Exp)
+                (\expr -> applyScope (inFreeVars expr) expr)
+            )
+            `polymorph` wrap
+              ( kleisliΣ
+                  (Proxy @'[L.Identifier, L.Exp])
+                  (Proxy @L.Exp)
+                  (\identifier -> applyScope (identifier ==))
+              )
+            `polymorph` wrap
+              ( kleisliΣ
+                  (Proxy @'[[L.Identifier], L.Exp])
+                  (Proxy @L.Exp)
+                  (\identifiers -> applyScope (`elem` identifiers))
+              )
+        ),
+        ( "resolve",
+          wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) (repeatExpM resolve))
+        )
       ]
   where
     pured = fmap pure
@@ -291,7 +324,10 @@ render :: ValueΣ -> String
 render (SDIdentifier :&: s) = s
 render (SDInt :&: s) = show s
 render (SDExp :&: s) = show s
-render ((SDList a) :&: s) = show $ render . (:&:) a <$> s
+render ((SDList a) :&: s) =
+  case s of
+    [] -> renderDtype (fromSing a) ++ "{}"
+    sl -> join ["{", intercalate ", " (render . (:&:) a <$> sl), "}"]
 
 -- parser =====================================================================
 
@@ -358,20 +394,22 @@ listP = do
       return $ List elements dtype
 
     typeP =
-      P.many (P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") >>= \case
+      P.many (P.oneOf allowedTypeChars) >>= \case
         "Int" -> pure $ Just DInt
         "Identifier" -> pure $ Just DIdentifier
         "Exp" -> pure $ Just DExp
         x -> fail $ "unknown type: " ++ x
 
+    allowedTypeChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 functionP :: Parser Expression
 functionP =
   Function
-    <$> funcNameP
-    <*> wrapped (spacedP (P.char '[')) (spacedP (P.char ']')) funcArgumentListP
+    <$> nameP
+    <*> wrapped (spacedP (P.char '[')) (spacedP (P.char ']')) argumentsP
   where
-    funcNameP = P.many (P.oneOf validFuncChars)
-    funcArgumentListP = P.chainr1 (pure <$> expressionP) commaP
+    nameP = P.many (P.oneOf validFuncChars)
+    argumentsP = P.chainr1 (pure <$> expressionP) commaP
     validFuncChars =
       "abcdefghijklmnopqrstuvwxyz"
         ++ "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
@@ -385,19 +423,21 @@ expressionP =
     <|> intP
 
 identifierExpP :: Parser Expression
-identifierExpP = Identifier <$> wrappedChar '"' '"' L.identifierP
+identifierExpP = Identifier <$> beginChar '#' L.identifierP
 
 -- utility parsers ------------------------------------------------------------
 
 commaP :: Parser ([a] -> [a] -> [a])
-commaP = do
-  spacedP (P.oneOf ",") >> pure (++)
+commaP = spacedP (P.oneOf ",") >> pure (++)
 
 wrappedChar :: Char -> Char -> Parser a -> Parser a
 wrappedChar start end = wrapped (P.char start) (P.char end)
 
 wrapped :: Parser x -> Parser y -> Parser a -> Parser a
 wrapped start end p = start *> p <* end
+
+beginChar :: Char -> Parser a -> Parser a
+beginChar start p = P.char start *> p
 
 spacedP :: Parser a -> Parser ()
 spacedP p = P.spaces *> p *> P.spaces
