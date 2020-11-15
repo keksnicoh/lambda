@@ -1,1 +1,3 @@
 # lambda
+
+This is a playground repository which started by playing areound with untyped lambda calculus. It was then tempting to implement a simple language to allow to define free variables (as simple assignments) and provide functions as tools to inspect expressions. Functions support ad-hoc polymorphism, but this would lead to a patterm match on the argument lists.. boring. Thus, after several attempts, singletons ran accross the path allowing to lift Haskell functions into the weird language by mapping the type signature to a singleton type identifying a sigma type representing the domain. Next experiment will by some jupyter like notebook api...

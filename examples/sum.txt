@@ -1,0 +1,26 @@
+S=λwyx.y(wyx);
+
+f0=λsz.z;
+f1=Sf0;
+f2=Sf1;
+f3=Sf2;
+f4=Sf3;
+f5=Sf4;
+f6=Sf5;
+f7=Sf6;
+
+T=λxy.x;
+F=λxy.y;
+¬ = λx.xFT;
+
+P=λn.nΦ(λz.zf0f0)F;
+Φ=λpz.z(S(pT))(pT);
+
+Z=λx.xF¬F;
+
+Y=λy.(λx.y(xx))(λx.y(xx));
+R=λrn.Znf0(nS(r(Pn)));
+
+hnfPrintSteps[{255}, resolve[YRf3]];
+
+

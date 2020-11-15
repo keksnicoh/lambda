@@ -36,25 +36,25 @@ data DType
   | DIdentifier
   | DExp
   | DList DType
-  deriving (Show)
+  deriving (Show, Eq)
 
 $(genSingletons [''DType])
 
 -- | identifies haskell type with dynamic runtime type
 type family TypeX (k :: DType) where
-  TypeX DInt = Int
-  TypeX DIdentifier = L.Identifier
-  TypeX DExp = L.Exp
-  TypeX (DList a) = [TypeX a]
+  TypeX 'DInt = Int
+  TypeX 'DIdentifier = L.Identifier
+  TypeX 'DExp = L.Exp
+  TypeX ( 'DList a) = [TypeX a]
 
 $(genDefunSymbols [''TypeX])
 
 -- |  identifies dynamic runtime type with haskell type
 type family DTypeX (k :: Type) where
-  DTypeX Int = DInt
-  DTypeX L.Identifier = DIdentifier
-  DTypeX L.Exp = DExp
-  DTypeX [a] = DList (DTypeX a)
+  DTypeX Int = 'DInt
+  DTypeX L.Identifier = 'DIdentifier
+  DTypeX L.Exp = 'DExp
+  DTypeX [a] = 'DList (DTypeX a)
 
 $(genDefunSymbols [''DTypeX])
 
@@ -77,7 +77,16 @@ type ValueΣ = Sigma DType TypeXSym0
 valueΣ :: forall a. (SingI (DTypeX a), a ~ TypeIso a) => a -> ValueΣ
 valueΣ = (:&:) (sing @(DTypeX a))
 
--- Dynamic Function Arguments -------------------------------------------------
+-- XXX find a better API to deal with lists
+pureListΣ :: ValueΣ -> ValueΣ
+pureListΣ (a :&: b) = SDList a :&: [b]
+
+toListΣ :: ValueΣ -> [ValueΣ] -> Maybe ValueΣ
+toListΣ a [] = Just a
+toListΣ (ast :&: as) ((at :&: a) : cs) =
+  case ast %~ SDList at of
+    Proved Refl -> toListΣ (ast :&: (a : as)) cs
+    Disproved _ -> Nothing
 
 type DTypeHList (ts :: [DType]) = HList (Map TypeXSym0 ts)
 

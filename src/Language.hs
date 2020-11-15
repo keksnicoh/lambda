@@ -1,9 +1,11 @@
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Language where
@@ -13,21 +15,26 @@ import Control.Monad (join)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadState, gets, modify)
 import Control.Monad.Writer (MonadWriter (tell))
+import Data.Data (type (:~:) (Refl))
 import Data.List (intercalate)
 import qualified Data.Map as M
-import Data.Singletons (Proxy (..))
+import Data.Singletons (Proxy (..), Sing, SingKind (fromSing), withSomeSing)
+import Data.Singletons.Decide (Decision (Disproved, Proved), SDecide (..))
 import Data.Singletons.Prelude (SList (SNil))
 import Data.Singletons.Sigma (Sigma (..), fstSigma)
 import qualified Data.Text as T
 import Dynamic
-  ( DType,
+  ( DType (..),
     FunctionΣ,
     SDType (SDExp, SDIdentifier, SDInt, SDList),
     Signature,
+    TypeX,
     ValueΣ,
     consArgument,
     functionΣ,
     kleisliΣ,
+    pureListΣ,
+    toListΣ,
     valueΣ,
   )
 import qualified Lambda as L
@@ -40,7 +47,7 @@ import Util (HList (HNil))
 data Expression
   = Function String [Expression]
   | Number Int
-  | List [Expression]
+  | List [Expression] (Maybe DType)
   | Lambda L.Exp
   | Identifier L.Identifier
   deriving (Show, Eq)
@@ -66,9 +73,9 @@ instance Monoid Statement where
 type Scope = M.Map L.Identifier L.Exp
 
 resolve :: MonadState Scope m => L.Exp -> m L.Exp
-resolve exp = do
+resolve expr = do
   state <- gets M.toList
-  pure (go state exp)
+  pure (go state expr)
   where
     go [] e = e
     go ((k, v) : ss) e = go ss $ L.sub k e v
@@ -81,34 +88,34 @@ repeatExpM f a = do
     else repeatExpM f next
 
 inFreeVars :: L.Exp -> L.Identifier -> b -> Bool
-inFreeVars exp k = const $ k `elem` L.free exp
+inFreeVars expr k = const $ k `elem` L.free expr
 
 betan :: Int -> L.Exp -> L.Exp
-betan 0 exp = exp
-betan n exp = betan (n - 1) $ L.β exp
+betan 0 expr = expr
+betan n expr = betan (n - 1) $ L.β expr
 
-scope :: MonadState Scope m => L.Exp -> m L.Exp
-scope exp = do
-  scope <- gets (M.filterWithKey (inFreeVars exp))
-  return $ applyScope scope exp
+applyScope :: MonadState Scope m => L.Exp -> m L.Exp
+applyScope expr = do
+  scope <- gets (M.filterWithKey (inFreeVars expr))
+  return $ applyScope' scope expr
   where
-    applyScope scope (L.Var n) = case M.lookup n scope of
+    applyScope' scope (L.Var n) = case M.lookup n scope of
       Just a -> a
       Nothing -> L.Var n
-    applyScope scope (L.App e1 e2) =
-      L.App (applyScope scope e1) (applyScope scope e2)
-    applyScope scope (L.Lam n e) =
-      L.Lam n $ applyScope (M.filterWithKey (const . (/=) n) scope) e
+    applyScope' scope (L.App e1 e2) =
+      L.App (applyScope' scope e1) (applyScope' scope e2)
+    applyScope' scope (L.Lam n e) =
+      L.Lam n $ applyScope' (M.filterWithKey (const . (/=) n) scope) e
 
 hnfPrintSteps :: MonadWriter [String] m => Int -> L.Exp -> m L.Exp
 hnfPrintSteps l = hnfPrintSteps' l
   where
-    hnfPrintSteps' 0 exp = do
+    hnfPrintSteps' 0 expr = do
       tell ["maximum attamepts reached ..."]
-      pure exp
-    hnfPrintSteps' n exp =
-      let next = L.β exp
-       in if next /= exp
+      pure expr
+    hnfPrintSteps' n expr =
+      let next = L.β expr
+       in if next /= expr
             then do
               tell [show (l - n + 1) ++ ": " ++ show next]
               hnfPrintSteps' (n - 1) next
@@ -117,19 +124,24 @@ hnfPrintSteps l = hnfPrintSteps' l
 -- evaluator ------------------------------------------------------------------
 
 -- | evaluates a statement
-eval :: (MonadState Scope m, MonadError String m, MonadWriter [String] m) => (String -> FunctionΣ String m) -> Statement -> m ()
-eval handler (Assign name stmt n) = do
-  expressionΣ handler stmt >>= \case
-    (SDExp :&: exp) -> do
-      modify (M.insert name exp)
-      eval handler n
+eval ::
+  (MonadState Scope m, MonadError String m, MonadWriter [String] m) =>
+  (String -> FunctionΣ String m) ->
+  Statement ->
+  m ()
+eval cont (Assign name stmt n) = do
+  expressionΣ cont stmt >>= \case
+    (SDExp :&: expr) -> do
+      modify (M.insert name expr)
+      eval cont n
     _ -> error "can only assign lambda expressions to variables"
-eval handler (Expression stmt n) = do
-  result <- expressionΣ handler stmt
+eval cont (Expression stmt n) = do
+  result <- expressionΣ cont stmt
   tell [render result]
-  eval handler n
+  eval cont n
 eval _ End = pure ()
 
+-- | creates a runtime value from an expression
 expressionΣ ::
   forall m.
   (Monad m, MonadError String m) =>
@@ -139,6 +151,7 @@ expressionΣ handle = \case
   Lambda c -> pureΣ c
   Number c -> pureΣ c
   Identifier c -> pureΣ c
+  List items dtypeOpt -> expressionListΣ (expressionΣ handle) items dtypeOpt
   Function name exprL -> do
     argumentsΣ <- valuesToArgumentsΣ <$> traverse (expressionΣ handle) exprL
     case handle name argumentsΣ of
@@ -147,6 +160,68 @@ expressionΣ handle = \case
   where
     valuesToArgumentsΣ = foldr consArgument (SNil :&: HNil)
     pureΣ x = pure (valueΣ x)
+
+-- | creates a runtime value from a list of expressions
+expressionListΣ ::
+  MonadError String m =>
+  (Expression -> m ValueΣ) ->
+  [Expression] ->
+  Maybe DType ->
+  m ValueΣ
+expressionListΣ cont = \case
+  [] -> \case
+    -- empty list must have type specified, otherwise the "ad-hoc polymorphism"
+    -- of the handlers could lead to undecidable situations.
+    Just dtype ->
+      pure $
+        withSomeSing dtype $ \(dtypeSing :: Sing dtype) ->
+          SDList dtypeSing :&: ([] :: [TypeX dtype])
+    Nothing -> throwError errorEmptyList
+  (c : cs) ->
+    \dtypeOpt -> do
+      first <- cont c
+      others <- traverse cont cs
+      case toListΣ (pureListΣ first) others of
+        Just result@(inferredType :&: _) -> case dtypeOpt of
+          Nothing -> pure result
+          -- if type was specified and non-empty list was evaluated, then we
+          -- will prove that inferred type matches specified type
+          Just dtype ->
+            withSomeSing dtype $ \dtypeSing ->
+              case inferredType %~ SDList dtypeSing of
+                Proved Refl -> pure result
+                Disproved _ ->
+                  throwError $ errorInferredTypeDiffers dtype inferredType
+        Nothing -> throwError $ errorInhomogeneousList (first : others)
+  where
+    errorInhomogeneousList lst =
+      join
+        [ "list contains inhomogeneous items\n\n",
+          "    " ++ show ((\(a :&: _) -> renderDtype (fromSing a)) <$> lst)
+        ]
+    errorInferredTypeDiffers a lt =
+      join
+        [ "list contains items of different type than specified.\n\n",
+          "    reason: type " ++ renderDtype a ++ " is specified ",
+          "but item type inferres to " ++ renderDtype (fromSing lt) ++ " \n"
+        ]
+    errorEmptyList =
+      join
+        [ "ambigious type due to construction of empty list {}.\n\n",
+          "    hint: specify list type (only required for empty lists).\n\n",
+          "    here are some examples:\n\n",
+          "      * Exp{}        - empty list of lambda expresssions\n",
+          "      * Int{}        - empty list of integer\n",
+          "      * Identifier{} - empty list of identifiers\n",
+          "      * Int{}{}      - empty list of list of integers\n",
+          "      * ...\n"
+        ]
+
+renderDtype :: DType -> String
+renderDtype DInt = "Int"
+renderDtype DIdentifier = "Identifier"
+renderDtype DExp = "Exp"
+renderDtype (DList a) = renderDtype a ++ "{}"
 
 -- handler --------------------------------------------------------------------
 
@@ -161,10 +236,11 @@ createHandler register fname args =
     Nothing -> Left functionErr
   where
     errorBody headline suggestion items =
-      let renderedFunc = renderFunction fname (fstSigma args)
+      let func = renderFunction fname (fstSigma args)
           subline = "  " ++ suggestion
           functions = (++) "\n    * " <$> items
-       in join $ [headline, "\n\n    > ", renderedFunc, "\n\n", subline, ":\n"] ++ functions ++ ["\n"]
+          parts = [headline, "\n\n    > ", func, "\n\n", subline, ":\n"]
+       in join $ parts ++ functions ++ ["\n"]
 
     functionErr =
       errorBody
@@ -179,28 +255,32 @@ createHandler register fname args =
         (renderFunction fname . fst <$> err)
 
 renderArguments :: [DType] -> String
-renderArguments args = intercalate ", " $ show <$> args
+renderArguments args = intercalate ", " $ renderDtype <$> args
 
 renderFunction :: String -> [DType] -> String
 renderFunction name args = name ++ "[" ++ renderArguments args ++ "]"
 
-handler :: (Monad m, MonadState Scope m, MonadWriter [String] m) => String -> FunctionΣ String m
+handler ::
+  (Monad m, MonadState Scope m, MonadWriter [String] m) =>
+  String ->
+  FunctionΣ String m
 handler =
   createHandler $
     M.fromList
+      -- XXX this should look more clean
       [ ("contract", wrap (pured . functionΣ L.β) `polymorph` wrap (pured . functionΣ betan)),
         ("hnfPrintSteps", wrap (kleisliΣ (Proxy @'[Int, L.Exp]) (Proxy @L.Exp) hnfPrintSteps)),
         ("free", wrap (pured . functionΣ L.free)),
-        ("scope", wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) scope)),
+        ("scope", wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) applyScope)),
         ("resolve", wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) (repeatExpM resolve)))
       ]
   where
     pured = fmap pure
     polymorph =
       liftA2
-        ( \x y -> case (x, y) of
-            (Right x, _) -> Right x
-            (_, Right y) -> Right y
+        ( \x y -> case (x, y) of -- XXX omg, arghh make this nice plz...
+            (Right v, _) -> Right v
+            (_, Right w) -> Right w
             (Left e1, Left e2) -> Left (e1 ++ e2)
         )
     wrap f x = case f x of
@@ -218,29 +298,83 @@ render ((SDList a) :&: s) = show $ render . (:&:) a <$> s
 parse :: String -> Either P.ParseError Statement
 parse = P.parse langP ""
 
+-- statement parsers ----------------------------------------------------------
+
+langP :: Parser Statement
+langP = P.try evalP <|> P.try assignP <|> eofP
+
+evalP :: Parser Statement
+evalP = do
+  stmt <- expressionP
+  spacedP (P.oneOf ";")
+  Expression stmt <$> langP
+
+assignP :: Parser Statement
+assignP = do
+  name <- L.identifierP
+  spacedP (P.oneOf "=")
+  stmt <- expressionP
+  spacedP (P.oneOf ";")
+  Assign name stmt <$> langP
+
+eofP :: Parser Statement
+eofP = do
+  foo <- P.many P.anyChar
+  if T.strip (T.pack foo) == ""
+    then return End
+    else P.parserFail $ "derp: " ++ foo
+
+-- expression parsers ---------------------------------------------------------
+
 lambdaP :: Parser Expression
 lambdaP = Lambda <$> L.expP
 
 intP :: Parser Expression
 intP = Number . read <$> P.many1 P.digit
 
+-- | parse list expressions
+--
+-- ## h2 examples
+--
+-- - list of lambda expressions: {λx.x, abc}
+-- - list with explict type: Int{1, 2}
 listP :: Parser Expression
 listP = do
-  P.char '{'
-  content <- List <$> P.chainr (pure <$> expressionP) commaP []
-  P.char '}'
-  return content
+  tname <- P.option Nothing (P.try typeP)
+  P.spaces <* P.char '{'
+  cont tname
+  where
+    -- specific dtype might nested or followed by items
+    cont (Just dtype) = P.try (nestedP dtype) <|> itemsP (Just dtype)
+    -- has no specific type, only items
+    cont Nothing = itemsP Nothing
+
+    nestedP dtype =
+      P.spaces <* wrappedChar '}' '{' P.spaces >> cont (Just $ DList dtype)
+
+    itemsP dtype = do
+      elements <- P.chainr (pure <$> expressionP) commaP []
+      P.spaces <* P.char '}'
+      return $ List elements dtype
+
+    typeP =
+      P.many (P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") >>= \case
+        "Int" -> pure $ Just DInt
+        "Identifier" -> pure $ Just DIdentifier
+        "Exp" -> pure $ Just DExp
+        x -> fail $ "unknown type: " ++ x
 
 functionP :: Parser Expression
-functionP = do
-  name <- P.many $ P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-  P.spaces
-  P.char '['
-  P.spaces
-  donk <- P.chainr1 (pure <$> expressionP) commaP
-  P.spaces
-  P.char ']'
-  return $ Function name donk
+functionP =
+  Function
+    <$> funcNameP
+    <*> wrapped (spacedP (P.char '[')) (spacedP (P.char ']')) funcArgumentListP
+  where
+    funcNameP = P.many (P.oneOf validFuncChars)
+    funcArgumentListP = P.chainr1 (pure <$> expressionP) commaP
+    validFuncChars =
+      "abcdefghijklmnopqrstuvwxyz"
+        ++ "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 
 expressionP :: Parser Expression
 expressionP =
@@ -250,51 +384,23 @@ expressionP =
     <|> P.try identifierExpP
     <|> intP
 
-commaP :: Parser ([Expression] -> [Expression] -> [Expression])
-commaP = do
-  P.spaces
-  P.oneOf ","
-  P.spaces >> pure (++)
-
 identifierExpP :: Parser Expression
-identifierExpP = do
-  P.oneOf "\""
-  name <- P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
-  tail <- P.many P.digit
-  P.oneOf "\""
-  return $ Identifier (name : tail)
+identifierExpP = Identifier <$> wrappedChar '"' '"' L.identifierP
 
-evalP :: Parser Statement
-evalP = do
-  stmt <- expressionP
-  P.spaces
-  P.oneOf ";"
-  P.spaces
-  Expression stmt <$> langP
+-- utility parsers ------------------------------------------------------------
 
-langP :: Parser Statement
-langP = do
-  P.try evalP <|> P.try assignP <|> eofP
+commaP :: Parser ([a] -> [a] -> [a])
+commaP = do
+  spacedP (P.oneOf ",") >> pure (++)
 
-assignP :: Parser Statement
-assignP = do
-  name <- P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
-  tail <- P.many P.digit
-  spaceP
-  P.oneOf "="
-  spaceP
-  stmt <- expressionP
-  P.spaces
-  P.oneOf ";"
-  P.spaces
+wrappedChar :: Char -> Char -> Parser a -> Parser a
+wrappedChar start end = wrapped (P.char start) (P.char end)
 
-  Assign (name : tail) stmt <$> langP
+wrapped :: Parser x -> Parser y -> Parser a -> Parser a
+wrapped start end p = start *> p <* end
+
+spacedP :: Parser a -> Parser ()
+spacedP p = P.spaces *> p *> P.spaces
 
 spaceP :: Parser String
 spaceP = P.many $ P.oneOf " "
-
-eofP = do
-  foo <- P.many P.anyChar
-  if T.strip (T.pack foo) == ""
-    then return End
-    else P.parserFail $ "derp: " ++ foo

@@ -14,6 +14,7 @@ module Lambda
     alpha,
     parse,
     expP,
+    identifierP
   )
 where
 
@@ -57,8 +58,8 @@ instance Show Exp where
   show (Var n) = n
   show (Lam n e) = "λ" ++ go n e
     where
-      go n (Lam m e) = n ++ go m e
-      go n e = n ++ "." ++ show e
+      go sn (Lam m se) = sn ++ go m se
+      go sn se = sn ++ "." ++ show se
   show (App (Var n1) (Var n2)) = n1 ++ n2
   show (App (Var n1) l) = n1 ++ "(" ++ show l ++ ")"
   show (App l1@(Lam _ _) (Var n1)) = "(" ++ show l1 ++ ")" ++ n1
@@ -130,7 +131,7 @@ sub x l@(Lam y e1) s
     freeTerm = free e1 ++ bound l
     notFreeVar = flip notElem freeTerm
     prefered = find notFreeVar ["x", "y", "z", "s", "u", "v", "w"]
-    tabulated = findInf 0
+    tabulated = findInf (0 :: Int)
     findInf i =
       let n = y ++ show i
        in if notFreeVar n then n else findInf (i + 1)
@@ -193,14 +194,14 @@ alpha x n = \case
 parse :: String -> Either P.ParseError Exp
 parse = P.parse expP ""
 
-pIdentifier :: Parser Identifier
-pIdentifier = (++) <$> (pure <$> varFirstCharP) <*> varTailCharP
-  where
-    varTailCharP = many P.digit
-    varFirstCharP = P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
+identifierP :: Parser Identifier
+identifierP =
+  (:)
+    <$> P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
+    <*> P.many P.digit
 
 varP :: Parser Exp
-varP = Var <$> pIdentifier
+varP = Var <$> identifierP
 
 expP :: Parser Exp
 expP = P.chainl1 lamVarP operatorP
@@ -211,13 +212,12 @@ expP = P.chainl1 lamVarP operatorP
 
 lamP :: Parser Exp
 lamP = do
-  lambdaP
-  name <- pIdentifier
-  nestedNames <- P.many pIdentifier
-  spaceP >> P.oneOf "." >> spaceP
-  nestLambda name nestedNames <$> expP
+  name <- lambdaP *> identifierP
+  nestedNames <- P.many identifierP
+  nestLambda name nestedNames <$> (dotP *> expP)
   where
     lambdaP = P.oneOf "λ\\"
-    nestLambda name [] exp = Lam name exp
-    nestLambda name (x : xs) exp = Lam name (nestLambda x xs exp)
+    nestLambda name [] expr = Lam name expr
+    nestLambda name (x : xs) expr = Lam name (nestLambda x xs expr)
     spaceP = many $ P.oneOf " "
+    dotP = spaceP *> P.oneOf "." *> spaceP

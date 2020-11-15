@@ -4,19 +4,16 @@ module Main where
 
 import Control.Monad (forM_)
 import Control.Monad.Except
-  ( ExceptT,
-    MonadError (throwError),
-    MonadIO,
-    runExceptT,
+  ( runExceptT,
   )
-import Control.Monad.State (MonadState, StateT (..), gets, modify)
-import Control.Monad.Writer (MonadWriter (tell), WriterT (..))
+import Control.Monad.State (StateT (..))
+import Control.Monad.Writer (WriterT (..))
 import qualified Data.Map as M
-import Language
-import LangT
+import Language ( eval, handler, parse )
+import LangT ( LangT(runLangT) )
 
 main :: IO ()
-main = evalFile "test5.txt"
+main = evalFile "examples/sum.txt"
 
 evalFile :: FilePath -> IO ()
 evalFile filePath = do

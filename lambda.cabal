@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 558b8dc679522ecfa2e5a648ef7a5734c1c1d6723e394728ab3830ddea8d8163
+-- hash: b6ad833977bea44df76baa5911ef7635ae09847703e4188af1dd31149e3c2312
 
 name:           lambda
 version:        0.1.0.0
@@ -54,7 +54,7 @@ executable lambda-exe
       Paths_lambda
   hs-source-dirs:
       app
-  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
       base >=4.7 && <5
     , constraints
