@@ -1,7 +1,7 @@
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Lambda
+module Lambda.Lib.Lambda
   ( β,
     beta,
     sub,
@@ -197,7 +197,7 @@ parse = P.parse expP ""
 identifierP :: Parser Identifier
 identifierP =
   (:)
-    <$> P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
+    <$> P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
     <*> P.many P.digit
 
 varP :: Parser Exp

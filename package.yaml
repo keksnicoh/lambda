@@ -28,9 +28,19 @@ dependencies:
 - text
 - constraints
 - singletons
+- time
+- uuid
+- servant
+- servant-server >= 0.18.1
+- wai
+- warp
+- aeson
+- mtl
 
 library:
-  source-dirs: src
+  source-dirs: 
+    - src
+    - notebook
 
 executables:
   lambda-exe:
@@ -54,3 +64,4 @@ tests:
     - -with-rtsopts=-N
     dependencies:
     - lambda
+    - notebook

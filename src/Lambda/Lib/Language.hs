@@ -8,7 +8,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Language where
+module Lambda.Lib.Language where
 
 import Control.Applicative (Alternative ((<|>)), liftA2)
 import Control.Monad (join)
@@ -23,7 +23,7 @@ import Data.Singletons.Decide (Decision (Disproved, Proved), SDecide (..))
 import Data.Singletons.Prelude (SList (SNil))
 import Data.Singletons.Sigma (Sigma (..), fstSigma)
 import qualified Data.Text as T
-import Dynamic
+import Lambda.Lib.Dynamic
   ( DType (..),
     FunctionΣ,
     SDType (SDExp, SDIdentifier, SDInt, SDList),
@@ -37,7 +37,7 @@ import Dynamic
     toListΣ,
     valueΣ,
   )
-import qualified Lambda as L
+import qualified Lambda.Lib.Lambda as L
 import qualified Text.Parsec as P
 import Text.Parsec.String (Parser)
 import Util (HList (HNil))

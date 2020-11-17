@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: b6ad833977bea44df76baa5911ef7635ae09847703e4188af1dd31149e3c2312
+-- hash: 4e12fa37987b15b551f25ff45d5c5ea3fedbe9d00da3b65c8d182d563887b1fc
 
 name:           lambda
 version:        0.1.0.0
@@ -27,44 +27,68 @@ source-repository head
 
 library
   exposed-modules:
-      Dynamic
-      Lambda
+      Lambda.Lib.Dynamic
+      Lambda.Lib.Lambda
+      Lambda.Lib.Language
+      Lambda.Notebook.App
+      Lambda.Notebook.Data.Error
+      Lambda.Notebook.Data.Kernel
+      Lambda.Notebook.Data.Result
+      Lambda.Notebook.Dependencies
+      Lambda.Notebook.Runtime
+      Lambda.Notebook.Server
+      Lambda.Notebook.Service.KernelService
+      Lambda.Notebook.Service.RunService
       LangT
-      Language
-      Lib
       Util
   other-modules:
       Paths_lambda
   hs-source-dirs:
       src
+      notebook
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , constraints
     , containers
     , hspec
     , mtl
     , parsec
+    , servant
+    , servant-server >=0.18.1
     , singletons
     , text
+    , time
+    , uuid
+    , wai
+    , warp
   default-language: Haskell2010
 
 executable lambda-exe
   main-is: Main.hs
   other-modules:
+      Notebook
       Paths_lambda
   hs-source-dirs:
       app
   ghc-options: -threaded -rtsopts -with-rtsopts=-N -Wall
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , constraints
     , containers
     , hspec
     , lambda
     , mtl
     , parsec
+    , servant
+    , servant-server >=0.18.1
     , singletons
     , text
+    , time
+    , uuid
+    , wai
+    , warp
   default-language: Haskell2010
 
 test-suite lambda-test
@@ -77,13 +101,21 @@ test-suite lambda-test
       test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
-      base >=4.7 && <5
+      aeson
+    , base >=4.7 && <5
     , constraints
     , containers
     , hspec
     , lambda
     , mtl
+    , notebook
     , parsec
+    , servant
+    , servant-server >=0.18.1
     , singletons
     , text
+    , time
+    , uuid
+    , wai
+    , warp
   default-language: Haskell2010

@@ -9,8 +9,9 @@ import Control.Monad.Writer
     MonadWriter,
     WriterT (WriterT),
   )
-import Language (Scope)
+import Lambda.Lib.Language (Scope)
 
+-- xxx will be removed soon
 newtype LangT a = LangT
   { runLangT :: WriterT [String] (StateT Scope (ExceptT String IO)) a
   }

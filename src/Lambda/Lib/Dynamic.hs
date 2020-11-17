@@ -11,7 +11,7 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
 
-module Dynamic where
+module Lambda.Lib.Dynamic where
 
 import Data.Data (type (:~:) (Refl))
 import Data.Kind (Type)
@@ -25,7 +25,7 @@ import Data.Singletons.Prelude
   )
 import Data.Singletons.Sigma (Sigma (..))
 import Data.Singletons.TH (genDefunSymbols, genSingletons)
-import qualified Lambda as L
+import qualified Lambda.Lib.Lambda as L
 import Util (HList (..))
 
 -- Dynamic Runtime Type -------------------------------------------------------

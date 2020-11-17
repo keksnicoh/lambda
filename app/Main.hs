@@ -9,7 +9,7 @@ import Control.Monad.Except
 import Control.Monad.State (StateT (..))
 import Control.Monad.Writer (WriterT (..))
 import qualified Data.Map as M
-import Language ( eval, handler, parse )
+import Lambda.Lib.Language ( eval, handler, parse )
 import LangT ( LangT(runLangT) )
 
 main :: IO ()

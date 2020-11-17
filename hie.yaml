@@ -1,0 +1,19 @@
+cradle:
+  stack:
+    - path: "./src"
+      component: "lambda:lib"
+
+    - path: "./notebook"
+      component: "lambda:lib"
+
+    - path: "./app/Main.hs"
+      component: "lambda:exe:lambda-exe"
+
+    - path: "./app/Notebook.hs"
+      component: "lambda:exe:lambda-exe"
+
+    - path: "./app/Paths_lambda.hs"
+      component: "lambda:exe:lambda-exe"
+
+    - path: "./test"
+      component: "lambda:test:lambda-test"
