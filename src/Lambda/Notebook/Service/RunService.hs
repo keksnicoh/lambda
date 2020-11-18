@@ -21,8 +21,8 @@ import qualified Data.UUID as U
 import Lambda.Lib.Language (parse)
 import Lambda.Notebook.Data.Error
   ( HandleError (..),
-    errorMessage,
-    errorResponse,
+    errorWithCode,
+    errorWithMessage,
     getOr,
   )
 import Lambda.Notebook.Data.Kernel
@@ -43,8 +43,8 @@ data RunError = UUIDNotFound | SyntaxError String
 
 instance HandleError RunError where
   errorToResponse = \case
-    SyntaxError err -> errorMessage err400 "could not parse given statement." err
-    UUIDNotFound -> errorResponse err404 "kernel does not exist."
+    SyntaxError err -> errorWithMessage err400 "could not parse given statement." err
+    UUIDNotFound -> errorWithCode err404 "kernel does not exist."
 
 runService ::
   (MonadState Register m, HasM T.UTCTime m, MonadIO m, MonadError RunError m) =>

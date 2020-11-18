@@ -9,7 +9,7 @@ import qualified Data.Time as T
 import qualified Data.UUID as U
 import Lambda.Notebook.Data.Error
   ( HandleError (..),
-    errorResponse,
+    errorWithCode,
     getOr,
   )
 import Lambda.Notebook.Data.Kernel
@@ -27,7 +27,7 @@ data CreateKernelError = TooManyKernelsError
 
 instance HandleError CreateKernelError where
   errorToResponse TooManyKernelsError =
-    errorResponse err403 "too many kernels running."
+    errorWithCode err403 "too many kernels running."
 
 createKernel ::
   ( MonadState Register m,
@@ -58,7 +58,7 @@ data KernelStatusError = NotFound
   deriving (Show)
 
 instance HandleError KernelStatusError where
-  errorToResponse NotFound = errorResponse err404 "kernel does not exist."
+  errorToResponse NotFound = errorWithCode err404 "kernel does not exist."
 
 kernelStatus ::
   (MonadState Register m, MonadError KernelStatusError m) =>
