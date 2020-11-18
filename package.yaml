@@ -36,6 +36,9 @@ dependencies:
 - warp
 - aeson
 - mtl
+- conduit
+- resourcet
+- transformers
 
 library:
   source-dirs: 

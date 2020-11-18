@@ -3,7 +3,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
@@ -14,40 +13,30 @@ import Control.Monad.Except (ExceptT (..), MonadError (throwError), runExceptT)
 import Data.Aeson (ToJSON (..), encode)
 import Data.Kind (Type)
 import GHC.Generics (Generic)
-import Lambda.Notebook.Dependencies ( HasM(..) )
 import Servant (ServerError (errBody, errHeaders))
-
--- notebook framework api -----------------------------------------------------
-
-instance (Functor m, HasM a m) => HasM a (ExceptT e m) where
-  getM = ExceptT (Right <$> getM)
-
--- implicit error handling ----------------------------------------------------
-
-class HandleError e where
-  errorToResponse :: MonadError ServerError m => e -> m a
 
 -- XXX is there a more general way using type-level programming?
 withErrorHandling0 ::
-  (HandleError e, MonadError ServerError m) =>
+  (MonadError ServerError m) =>
+  (e -> m r) ->
   ExceptT e m r ->
   m r
-withErrorHandling0 acc =
-  runExceptT acc >>= \case
-    Right res -> pure res
-    Left e -> errorToResponse e
+withErrorHandling0 handler acc =
+  runExceptT acc >>= getOr handler
 
 withErrorHandling1 ::
-  (HandleError e, MonadError ServerError m) =>
+  (MonadError ServerError m) =>
+  (e -> m r) ->
   (a -> ExceptT e m r) ->
   (a -> m r)
-withErrorHandling1 acc a = withErrorHandling0 (acc a)
+withErrorHandling1 handler acc a = withErrorHandling0 handler (acc a)
 
 withErrorHandling2 ::
-  (HandleError e, MonadError ServerError m) =>
+  (MonadError ServerError m) =>
+  (e -> m r) ->
   (a -> b -> ExceptT e m r) ->
   (a -> b -> m r)
-withErrorHandling2 acc a b = withErrorHandling0 (acc a b)
+withErrorHandling2 handler acc a b = withErrorHandling0 handler (acc a b)
 
 -- servant error handling helpers ---------------------------------------------
 
@@ -63,23 +52,23 @@ errorWithMessage ::
   String ->
   a ->
   m r
-errorWithMessage serverError error body =
-  errorResponse serverError (Error error body)
+errorWithMessage serverError errorCoce body =
+  errorResponse serverError (Error errorCoce body)
 
 errorWithCode :: (MonadError ServerError m) => ServerError -> String -> m r
-errorWithCode serverError error =
-  errorResponse serverError (Error error (Nothing :: Maybe ()))
+errorWithCode serverError errorCoce =
+  errorResponse serverError (Error errorCoce (Nothing :: Maybe ()))
 
 errorResponse ::
   (MonadError ServerError m, ToJSON a) =>
   ServerError ->
   Error a ->
   m r
-errorResponse serverError error =
+errorResponse serverError errorCoce =
   throwError $
     serverError
       { errHeaders = [("Content-Type", "application/json;charset=utf-8")],
-        errBody = encode error
+        errBody = encode errorCoce
       }
 
 -- MonadError based extraction of values --------------------------------------

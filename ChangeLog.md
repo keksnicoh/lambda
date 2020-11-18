@@ -1,5 +1,7 @@
 # Changelog for lambda
 
+- [18.11.2020]
+    - integrated conduit to stream output from statement evaluation
 - [17.11.2020]
     - bootstrap prototype framework for notebook service using Servant
     - project files restructurization

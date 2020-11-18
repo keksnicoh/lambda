@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 4e12fa37987b15b551f25ff45d5c5ea3fedbe9d00da3b65c8d182d563887b1fc
+-- hash: a78c927a94b3a8448ee249a4526599acc6b3762522b48b4e49d37f9469e267ba
 
 name:           lambda
 version:        0.1.0.0
@@ -30,15 +30,16 @@ library
       Lambda.Lib.Dynamic
       Lambda.Lib.Lambda
       Lambda.Lib.Language
+      Lambda.Notebook.Action.Execute
+      Lambda.Notebook.Action.Kernel
       Lambda.Notebook.App
+      Lambda.Notebook.Controller.Execute
+      Lambda.Notebook.Controller.Kernel
       Lambda.Notebook.Data.Error
       Lambda.Notebook.Data.Kernel
-      Lambda.Notebook.Data.Result
       Lambda.Notebook.Dependencies
       Lambda.Notebook.Runtime
       Lambda.Notebook.Server
-      Lambda.Notebook.Service.KernelService
-      Lambda.Notebook.Service.RunService
       LangT
       Util
   other-modules:
@@ -49,16 +50,19 @@ library
   build-depends:
       aeson
     , base >=4.7 && <5
+    , conduit
     , constraints
     , containers
     , hspec
     , mtl
     , parsec
+    , resourcet
     , servant
     , servant-server >=0.18.1
     , singletons
     , text
     , time
+    , transformers
     , uuid
     , wai
     , warp
@@ -75,17 +79,20 @@ executable lambda-exe
   build-depends:
       aeson
     , base >=4.7 && <5
+    , conduit
     , constraints
     , containers
     , hspec
     , lambda
     , mtl
     , parsec
+    , resourcet
     , servant
     , servant-server >=0.18.1
     , singletons
     , text
     , time
+    , transformers
     , uuid
     , wai
     , warp
@@ -103,6 +110,7 @@ test-suite lambda-test
   build-depends:
       aeson
     , base >=4.7 && <5
+    , conduit
     , constraints
     , containers
     , hspec
@@ -110,11 +118,13 @@ test-suite lambda-test
     , mtl
     , notebook
     , parsec
+    , resourcet
     , servant
     , servant-server >=0.18.1
     , singletons
     , text
     , time
+    , transformers
     , uuid
     , wai
     , warp

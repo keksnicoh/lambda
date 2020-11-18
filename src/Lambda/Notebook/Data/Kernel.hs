@@ -1,19 +1,32 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Lambda.Notebook.Data.Kernel where
+module Lambda.Notebook.Data.Kernel
+  ( Kernel (..),
+    Register,
+    createKernelIoRef,
+    runKernel,
+    updateKernel,
+    yieldResult,
+    yieldError,
+  )
+where
 
-import Control.Monad.State (MonadState, modify)
-import Data.Aeson (ToJSON (toJSON))
+import Conduit (ConduitT, MonadIO (..), yield)
+import Data.Aeson (ToJSON)
+import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
+import Data.List (intercalate)
 import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import GHC.Generics (Generic)
-import Lambda.Lib.Lambda (Exp)
-import Lambda.Lib.Language (Scope)
-import Lambda.Notebook.Dependencies (HasM, getM)
+import Lambda.Lib.Language (Scope, Statement, StdOut)
+import Lambda.Notebook.Runtime (execute)
+
+-- data -----------------------------------------------------------------------
 
 data Kernel = Kernel
   { execution :: Int,
@@ -23,19 +36,49 @@ data Kernel = Kernel
   }
   deriving (Generic, ToJSON)
 
-instance ToJSON Exp where
-  toJSON p = toJSON $ show p
+type Register = M.Map U.UUID (IORef Kernel)
 
-type Register = M.Map U.UUID Kernel
+-- actions --------------------------------------------------------------------
 
--- update kernel --------------------------------------------------------------
+createKernelIoRef :: T.UTCTime -> IO (IORef Kernel)
+createKernelIoRef currentTime =
+  newIORef $
+    Kernel
+      { execution = 0,
+        scope = M.empty,
+        created = currentTime,
+        invoked = Nothing
+      }
 
-updateKernelInvoked :: (HasM T.UTCTime m, MonadState Register m) => U.UUID -> Kernel -> m ()
-updateKernelInvoked uuid kernel = do
-  time <- getM @T.UTCTime
-  modify $
-    M.insert uuid $
-      kernel
-        { invoked = Just time,
-          execution = 1 + execution kernel
-        }
+updateKernel :: MonadIO m => IORef Kernel -> Kernel -> m ()
+updateKernel kernelIORef kernel = do
+  now <- liftIO T.getCurrentTime
+  let newKernel =
+        kernel
+          { invoked = Just now,
+            execution = execution kernel + 1
+          }
+  liftIO $ modifyIORef' kernelIORef (const newKernel)
+
+-- Conduit --------------------------------------------------------------------
+
+runKernel :: MonadIO m => IORef Kernel -> Statement -> StdOut m ()
+runKernel kernelIORef statement = do
+  kernel <- liftIO $ readIORef kernelIORef
+  execute (scope kernel) statement >>= \case
+    Right newScope -> do
+      yieldResult newScope
+      updateKernel kernelIORef kernel {scope = newScope}
+    Left runtimeError -> yieldError runtimeError
+
+yieldResult :: Monad m => M.Map String a -> ConduitT i String m ()
+yieldResult runtimeScope = do
+  yield $ "(exit ok, scope " ++ intercalate "," (M.keys runtimeScope) ++ ")"
+
+yieldError :: Monad m => String -> ConduitT i String m ()
+yieldError runtimeError = do
+  yield "================================================"
+  yield " Runtime Error"
+  yield "================================================"
+  yield ""
+  yield runtimeError

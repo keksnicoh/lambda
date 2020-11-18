@@ -13,7 +13,7 @@ import Lambda.Lib.Language (Scope)
 
 -- xxx will be removed soon
 newtype LangT a = LangT
-  { runLangT :: WriterT [String] (StateT Scope (ExceptT String IO)) a
+  { runLangT ::  StateT Scope (ExceptT String IO) a
   }
   deriving
     ( Functor,
@@ -21,6 +21,5 @@ newtype LangT a = LangT
       Applicative,
       MonadIO,
       MonadState Scope,
-      MonadError String,
-      MonadWriter [String]
+      MonadError String
     )

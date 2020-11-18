@@ -1,96 +1,59 @@
-{-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
-{-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE TypeOperators #-}
 
--- XXX very prototypal stuff in here ...
-module Lambda.Notebook.Runtime where
+module Lambda.Notebook.Runtime (execute, RuntimeT (..)) where
 
 import Control.Monad.Except
   ( ExceptT,
-    MonadError (throwError),
-    MonadIO (..),
-    runExceptT,
+    MonadError,
   )
-import Control.Monad.Reader (MonadReader (ask), ReaderT (..), asks)
-import Control.Monad.State (MonadState (get, put))
-import Control.Monad.Writer
-  ( MonadWriter (listen, pass, tell),
-  )
+import Control.Monad.Reader (MonadReader (ask), ReaderT (..))
+import Control.Monad.State (MonadIO (..), MonadState (get, put))
+import Data.Conduit (ConduitT, transPipe)
+import Data.Conduit.Lift (runExceptC, runReaderC)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import Lambda.Lib.Language (Scope, Statement, eval, handler)
-import Lambda.Notebook.Data.Kernel (Kernel (scope))
 
-data Runtime = Runtime
-  { stdout :: IORef [String],
-    runtimeScope :: IORef Scope
-  }
+-- statement evaluation runtime -----------------------------------------------
 
-newtype RuntimeT a = RuntimeT
-  { runRuntimeT :: ReaderT Runtime (ExceptT String IO) a
+newtype RuntimeT m a = RuntimeT
+  { runRuntimeT :: ReaderT (IORef Scope) (ExceptT String m) a
   }
   deriving
     ( Functor,
       Applicative,
       Monad,
-      MonadReader Runtime,
+      MonadReader (IORef Scope),
       MonadIO,
       MonadError String
     )
 
--- XXX highly experimantal
-instance MonadWriter [String] RuntimeT where
-  tell msg = do
-    env <- ask
-    liftIO $ modifyIORef' (stdout env) (<> msg)
-  listen action = do
-    env <- ask
-    tempStdOut <- liftIO $ newIORef []
-    let runtime' = env {stdout = tempStdOut}
-        foo = runExceptT (runReaderT (runRuntimeT action) runtime')
-    result <- liftIO foo
-    case result of
-      Right res -> do
-        written <- liftIO $ readIORef tempStdOut
-        pure (res, written)
-      Left err -> throwError err
+-- haskell API ----------------------------------------------------------------
 
-  pass action = do
-    env <- ask
-    tempStdOut <- liftIO $ newIORef []
-    let runtime' = env {stdout = tempStdOut}
-        foo = runExceptT (runReaderT (runRuntimeT action) runtime')
-    res <- liftIO foo
-    case res of
-      Right (result, f) -> do
-        written <- f <$> liftIO (readIORef tempStdOut)
-        liftIO $ modifyIORef' (stdout env) (<> written)
-        pure result
-      Left err -> throwError err
-
-runner :: RuntimeT a -> Runtime -> IO (Either String a)
-runner evalM runtime = runExceptT (runReaderT (runRuntimeT evalM) runtime)
-
-instance MonadState Scope RuntimeT where
-  get = asks runtimeScope >>= liftIO . readIORef
+instance MonadIO m => MonadState Scope (RuntimeT m) where
+  get = ask >>= liftIO . readIORef
   put s = do
-    env <- ask
-    liftIO $ modifyIORef' (runtimeScope env) (const s)
+    scope <- ask
+    liftIO $ modifyIORef' scope (const s)
 
-execute :: Kernel -> Statement -> IO (Runtime, Maybe String)
-execute kernel statement = do
-  do
-    runtime <- Runtime <$> newIORef [] <*> newIORef (scope kernel)
-    (,) runtime . projResult <$> runner (eval handler statement) runtime
-  where
-    projResult (Left err) = Just err
-    projResult _ = Nothing
+-- action ---------------------------------------------------------------------
+
+execute ::
+  MonadIO m =>
+  Scope ->
+  Statement ->
+  ConduitT () String m (Either String Scope)
+execute scope statement = do
+  runtime <- liftIO $ newIORef scope
+  result <- runner runtime (eval handler statement)
+  case result of
+    Right () -> Right <$> liftIO (readIORef runtime)
+    Left e -> pure (Left e)
+
+runner ::
+  (MonadIO m) =>
+  IORef Scope ->
+  ConduitT () String (RuntimeT m) a ->
+  ConduitT () String m (Either String a)
+runner runtime = runExceptC . runReaderC runtime . transPipe runRuntimeT

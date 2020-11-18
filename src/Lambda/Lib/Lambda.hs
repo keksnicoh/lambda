@@ -14,11 +14,12 @@ module Lambda.Lib.Lambda
     alpha,
     parse,
     expP,
-    identifierP
+    identifierP,
   )
 where
 
 import Control.Applicative (many, (<|>))
+import Data.Aeson (ToJSON (toJSON))
 import Data.List (find, intersect, nub, sort)
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
@@ -69,6 +70,9 @@ instance Show Exp where
 
 instance IsString Exp where
   fromString = Var
+
+instance ToJSON Exp where
+  toJSON p = toJSON $ show p
 
 -- operations and objects from lambda calculus --------------------------------
 

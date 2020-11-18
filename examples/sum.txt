@@ -21,6 +21,6 @@ Z=λx.xF¬F;
 Y=λy.(λx.y(xx))(λx.y(xx));
 R=λrn.Znf0(nS(r(Pn)));
 
-hnfPrintSteps[{255}, resolve[YRf3]];
+hnfPrintSteps[255, resolve[YRf1]];
 
 
