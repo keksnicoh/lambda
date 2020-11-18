@@ -11,6 +11,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Lambda.Notebook.App where
 
@@ -28,25 +29,31 @@ import Lambda.Notebook.Data.Kernel (Register)
 import Lambda.Notebook.Dependencies
   ( HasM (..),
   )
-import Servant (Handler, ServerError, throwError)
+import Servant (throwError)
 
-instance MonadError ServerError (AppT Handler) where
-  throwError e = AppT (throwError e)
-  catchError a b = undefined --AppT (catchError a b)
+-- application environment ----------------------------------------------------
 
-data Env = Env
-  { kernels :: IORef Register,
-    derp :: String
+newtype Env = Env
+  { kernels :: IORef Register
   }
 
 newtype AppT m a = AppT {runAppT :: ReaderT Env m a}
   deriving (Functor, Applicative, Monad, MonadReader Env, MonadIO)
 
+-- haskell API ----------------------------------------------------------------
+
+instance MonadError e m => MonadError e (AppT m) where
+  throwError e = AppT (throwError e)
+  catchError a b = AppT $ catchError (runAppT a) (runAppT . b)
+
+-- XXX is this safe when multiple threads are used
 instance MonadIO m => MonadState Register (AppT m) where
   get = asks kernels >>= liftIO . readIORef
   put s = do
     env <- ask
     liftIO $ modifyIORef' (kernels env) (const s)
+
+-- notebook framework API -----------------------------------------------------
 
 instance MonadIO m => HasM T.UTCTime (AppT m) where
   getM = liftIO T.getCurrentTime

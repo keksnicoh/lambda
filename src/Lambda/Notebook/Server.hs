@@ -57,5 +57,5 @@ notebookServer :: Port -> IO ()
 notebookServer port = do
   let register = M.empty :: Register
   ioRef <- newIORef register
-  let env = Env ioRef "foo"
+  let env = Env ioRef
   Network.Wai.Handler.Warp.run port (notebookApp env)
