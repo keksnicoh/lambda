@@ -53,7 +53,8 @@ executeStatementEndoint = \case
   SyntaxError err ->
     errorWithMessage err400 "could not parse given statement." err
   UUIDNotFound -> errorWithCode err404 "kernel does not exist."
-  KernelIsRunning kernel -> errorWithMessage err423 "kernel is already running" kernel
+  KernelIsRunning kernel ->
+    errorWithMessage err423 "kernel is already running" kernel
 
 type ExecuteStatementEndpoint =
   Capture "uuid" U.UUID

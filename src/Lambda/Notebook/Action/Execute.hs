@@ -5,17 +5,25 @@
 module Lambda.Notebook.Action.Execute where
 
 import Conduit (MonadIO (..), yield)
-import Control.Monad ( when )
+import Control.Monad (when)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadState, gets)
-import Data.IORef ( IORef, readIORef )
-import Data.List ( intercalate )
+import Data.IORef (IORef, readIORef)
+import Data.List (intercalate)
 import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import Lambda.Lib.Language (Statement, StdOut, parse)
 import Lambda.Notebook.Data.Error (getOr)
-import Lambda.Notebook.Data.Kernel (Kernel, KernelStatus (..), Register, scope, status, updateKernel, updateKernelRunning)
+import Lambda.Notebook.Data.Kernel
+  ( Kernel,
+    KernelStatus (..),
+    Register,
+    scope,
+    status,
+    updateKernel,
+    updateKernelRunning,
+  )
 import Lambda.Notebook.Dependencies (HasM)
 import Lambda.Notebook.Runtime (execute)
 import Servant (SourceIO, ToSourceIO (..))
