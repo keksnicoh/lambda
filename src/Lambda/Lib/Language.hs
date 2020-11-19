@@ -1,12 +1,14 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeSynonymInstances #-}
 
 module Lambda.Lib.Language where
 
@@ -72,7 +74,15 @@ instance Monoid Statement where
 
 type StdOut = ConduitT () String
 
+class MonadStdOut m where
+  stdout :: String -> m ()
+
+instance Monad m => MonadStdOut (StdOut m) where
+  stdout = yield
+
 type Scope = M.Map L.Identifier L.Exp
+
+-- handler --------------------------------------------------------------------
 
 resolve :: MonadState Scope m => L.Exp -> m L.Exp
 resolve expr = do
@@ -113,20 +123,17 @@ applyScope f expr = do
     go scope (L.Lam n e) =
       L.Lam n $ go (M.filterWithKey (const . (/=) n) scope) e
 
-hnfPrintSteps :: (Monad m) => Int -> L.Exp -> (StdOut m) L.Exp
+hnfPrintSteps :: (Monad m, MonadStdOut m) => Int -> L.Exp -> m L.Exp
 hnfPrintSteps l = hnfPrintSteps' l
   where
     hnfPrintSteps' 0 expr = do
-      --liftResourceT
-      --yield "maximum attamepts reached ..."
+      stdout "maximum attempts reached ..."
       pure expr
     hnfPrintSteps' n expr =
       let next = L.β expr
        in if next /= expr
             then do
-              --liftResourceT  $ show (l - n + 1)
-              yield $ show (l - n + 1) ++ ": " ++ show next
-              --forM_ (show (l - n + 1) ++ ": " ++ show next) $ yield
+              stdout $ show (l - n + 1) ++ ": " ++ show next
               hnfPrintSteps' (n - 1) next
             else pure next
 
@@ -134,10 +141,10 @@ hnfPrintSteps l = hnfPrintSteps' l
 
 -- | evaluates a statement
 eval ::
-  (MonadState Scope m, MonadError String m) =>
-  (String -> FunctionΣ String (StdOut m)) ->
+  (MonadState Scope m, MonadStdOut m, MonadError String m) =>
+  (String -> FunctionΣ String m) ->
   Statement ->
-  StdOut m ()
+  m ()
 eval cont (Assign name stmt n) = do
   expressionΣ cont stmt >>= \case
     (SDExp :&: expr) -> do
@@ -146,16 +153,16 @@ eval cont (Assign name stmt n) = do
     _ -> error "can only assign lambda expressions to variables"
 eval cont (Expression stmt n) = do
   result <- expressionΣ cont stmt
-  yield $ render result
+  stdout $ render result
   eval cont n
 eval _ End = pure ()
 
 -- | creates a runtime value from an expression
 expressionΣ ::
   forall m.
-  (Monad m, MonadError String (StdOut m)) =>
-  (String -> FunctionΣ String (StdOut m)) ->
-  (Expression -> StdOut m ValueΣ)
+  (Monad m, MonadStdOut m, MonadError String m) =>
+  (String -> FunctionΣ String m) ->
+  (Expression -> m ValueΣ)
 expressionΣ handle = \case
   Lambda c -> pureΣ c
   Number c -> pureΣ c

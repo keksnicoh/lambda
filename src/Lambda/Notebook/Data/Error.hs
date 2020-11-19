@@ -13,7 +13,7 @@ import Control.Monad.Except (ExceptT (..), MonadError (throwError), runExceptT)
 import Data.Aeson (ToJSON (..), encode)
 import Data.Kind (Type)
 import GHC.Generics (Generic)
-import Servant (ServerError (errBody, errHeaders))
+import Servant (ServerError (..))
 
 -- XXX is there a more general way using type-level programming?
 withErrorHandling0 ::
@@ -85,3 +85,14 @@ instance GetOr Maybe a m where
 instance GetOr (Either e) a m where
   type T (Either e) a m = e -> m a
   getOr e = either e pure
+
+-- error which are not predefined by servant ----------------------------------
+
+err423 :: ServerError
+err423 =
+  ServerError
+    { errHTTPCode = 423,
+      errReasonPhrase = "The resource that is being accessed is locked.",
+      errBody = "",
+      errHeaders = []
+    }

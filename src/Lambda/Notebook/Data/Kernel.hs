@@ -6,35 +6,36 @@
 
 module Lambda.Notebook.Data.Kernel
   ( Kernel (..),
+    KernelStatus (..),
     Register,
     createKernelIoRef,
-    runKernel,
+    updateKernelRunning,
     updateKernel,
-    yieldResult,
-    yieldError,
   )
 where
 
-import Conduit (ConduitT, MonadIO (..), yield)
+import Conduit (MonadIO (..))
 import Data.Aeson (ToJSON)
-import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
-import Data.List (intercalate)
+import Data.IORef (IORef, modifyIORef', newIORef)
 import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import GHC.Generics (Generic)
-import Lambda.Lib.Language (Scope, Statement, StdOut)
-import Lambda.Notebook.Runtime (execute)
+import Lambda.Lib.Language (Scope)
 
 -- data -----------------------------------------------------------------------
+
+data KernelStatus = Running | Success | RuntimeError
+  deriving (Generic, ToJSON, Eq, Show)
 
 data Kernel = Kernel
   { execution :: Int,
     scope :: Scope,
     created :: T.UTCTime,
-    invoked :: Maybe T.UTCTime
+    invoked :: Maybe T.UTCTime,
+    status :: Maybe KernelStatus
   }
-  deriving (Generic, ToJSON)
+  deriving (Generic, ToJSON, Show)
 
 type Register = M.Map U.UUID (IORef Kernel)
 
@@ -47,38 +48,20 @@ createKernelIoRef currentTime =
       { execution = 0,
         scope = M.empty,
         created = currentTime,
+        status = Nothing,
         invoked = Nothing
+      }
+
+updateKernelRunning :: MonadIO m => IORef Kernel -> Kernel -> m ()
+updateKernelRunning kernelIORef kernel = do
+  now <- liftIO T.getCurrentTime
+  updateKernel kernelIORef $
+    kernel
+      { invoked = Just now,
+        execution = execution kernel + 1,
+        status = Just Running
       }
 
 updateKernel :: MonadIO m => IORef Kernel -> Kernel -> m ()
 updateKernel kernelIORef kernel = do
-  now <- liftIO T.getCurrentTime
-  let newKernel =
-        kernel
-          { invoked = Just now,
-            execution = execution kernel + 1
-          }
-  liftIO $ modifyIORef' kernelIORef (const newKernel)
-
--- Conduit --------------------------------------------------------------------
-
-runKernel :: MonadIO m => IORef Kernel -> Statement -> StdOut m ()
-runKernel kernelIORef statement = do
-  kernel <- liftIO $ readIORef kernelIORef
-  execute (scope kernel) statement >>= \case
-    Right newScope -> do
-      yieldResult newScope
-      updateKernel kernelIORef kernel {scope = newScope}
-    Left runtimeError -> yieldError runtimeError
-
-yieldResult :: Monad m => M.Map String a -> ConduitT i String m ()
-yieldResult runtimeScope = do
-  yield $ "(exit ok, scope " ++ intercalate "," (M.keys runtimeScope) ++ ")"
-
-yieldError :: Monad m => String -> ConduitT i String m ()
-yieldError runtimeError = do
-  yield "================================================"
-  yield " Runtime Error"
-  yield "================================================"
-  yield ""
-  yield runtimeError
+  liftIO $ modifyIORef' kernelIORef (const kernel)

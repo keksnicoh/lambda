@@ -10,7 +10,8 @@ import qualified Data.UUID as U
 import Lambda.Notebook.Action.Execute (RunError (..), demoEndpoint, runService)
 import Lambda.Notebook.App (AppT)
 import Lambda.Notebook.Data.Error
-  ( errorWithCode,
+  ( err423,
+    errorWithCode,
     errorWithMessage,
     withErrorHandling2,
   )
@@ -52,6 +53,7 @@ executeStatementEndoint = \case
   SyntaxError err ->
     errorWithMessage err400 "could not parse given statement." err
   UUIDNotFound -> errorWithCode err404 "kernel does not exist."
+  KernelIsRunning kernel -> errorWithMessage err423 "kernel is already running" kernel
 
 type ExecuteStatementEndpoint =
   Capture "uuid" U.UUID
