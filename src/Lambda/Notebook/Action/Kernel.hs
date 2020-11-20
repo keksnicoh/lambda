@@ -10,7 +10,7 @@ import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import Lambda.Notebook.Data.Error (getOr)
-import Lambda.Notebook.Data.Kernel (Register, createKernelIoRef, Kernel)
+import Lambda.Notebook.Data.Kernel (Kernel, Register, UUIDContainer (..), createKernelIoRef)
 import Lambda.Notebook.Dependencies (HasM (..))
 
 -- create kernel  -------------------------------------------------------------
@@ -24,7 +24,7 @@ createKernelAction ::
     MonadError CreateKernelError m,
     MonadIO m
   ) =>
-  m U.UUID
+  m (UUIDContainer Kernel)
 createKernelAction = do
   nKernels <- gets M.size
 
@@ -33,10 +33,10 @@ createKernelAction = do
   uuid <- getM
   currentTime <- getM
 
-  ioRef <- liftIO $ createKernelIoRef currentTime
+  (ioRef, kernel) <- liftIO $ createKernelIoRef currentTime
 
   modify $ M.insert uuid ioRef
-  pure uuid
+  pure $ UUIDContainer {uuid = uuid, value = kernel}
 
 -- kernel status --------------------------------------------------------------
 

@@ -19,7 +19,7 @@ import Lambda.Notebook.Data.Error
     withErrorHandling0,
     withErrorHandling1,
   )
-import Lambda.Notebook.Data.Kernel (Kernel)
+import Lambda.Notebook.Data.Kernel (UUIDContainer, Kernel)
 import Servant
   ( Capture,
     Get,
@@ -34,14 +34,14 @@ import Servant.Server (Handler, ServerError, err403, err404)
 
 type KernelAPI = CreateKernelEndpoint :<|> KernelStatusEndpoint
 
-kernelHandler :: AppT Handler U.UUID :<|> (U.UUID -> AppT Handler Kernel)
+kernelHandler :: AppT Handler (UUIDContainer Kernel) :<|> (U.UUID -> AppT Handler Kernel)
 kernelHandler =
   withErrorHandling0 createKernelEndpoint createKernelAction
     :<|> withErrorHandling1 kernelStatusEndpoint kernelByUUIDAction
 
 -- create kernel endpoint -----------------------------------------------------
 
-type CreateKernelEndpoint = Put '[JSON] U.UUID
+type CreateKernelEndpoint = Put '[JSON] (UUIDContainer Kernel)
 
 createKernelEndpoint :: MonadError ServerError m => CreateKernelError -> m r
 createKernelEndpoint = \case

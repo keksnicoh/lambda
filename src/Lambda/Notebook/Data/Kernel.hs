@@ -2,11 +2,13 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 
 module Lambda.Notebook.Data.Kernel
   ( Kernel (..),
     KernelStatus (..),
+    UUIDContainer (..),
     Register,
     createKernelIoRef,
     updateKernelRunning,
@@ -25,6 +27,9 @@ import Lambda.Lib.Language (Scope)
 
 -- data -----------------------------------------------------------------------
 
+data UUIDContainer a = UUIDContainer {uuid :: U.UUID, value :: a}
+  deriving (Generic, ToJSON, Show)
+
 data KernelStatus = Running | Success | RuntimeError
   deriving (Generic, ToJSON, Eq, Show)
 
@@ -41,16 +46,18 @@ type Register = M.Map U.UUID (IORef Kernel)
 
 -- actions --------------------------------------------------------------------
 
-createKernelIoRef :: T.UTCTime -> IO (IORef Kernel)
+createKernelIoRef :: T.UTCTime -> IO (IORef Kernel, Kernel)
 createKernelIoRef currentTime =
-  newIORef $
-    Kernel
-      { execution = 0,
-        scope = M.empty,
-        created = currentTime,
-        status = Nothing,
-        invoked = Nothing
-      }
+  (,kernel) <$> newIORef kernel
+  where
+    kernel =
+      Kernel
+        { execution = 0,
+          scope = M.empty,
+          created = currentTime,
+          status = Nothing,
+          invoked = Nothing
+        }
 
 updateKernelRunning :: MonadIO m => IORef Kernel -> Kernel -> m ()
 updateKernelRunning kernelIORef kernel = do
