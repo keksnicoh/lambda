@@ -72,7 +72,7 @@ runKernel kernelIORef kernel statement = do
 
 yieldResult :: Monad m => M.Map String a -> StdOut m ()
 yieldResult runtimeScope = do
-  yield $ "(exit ok, scope " ++ intercalate "," (M.keys runtimeScope) ++ ")"
+  yield $ "(exit ok; scope: " ++ intercalate ", " (M.keys runtimeScope) ++ ")"
 
 yieldError :: Monad m => String -> StdOut m ()
 yieldError runtimeError = do

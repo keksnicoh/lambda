@@ -1,5 +1,7 @@
 # Changelog for lambda
 
+- [22.11.2020]
+    - introduced subsitution expressions of form `a[b/a]`
 - [19.11.2020]
     - status to avoid multple parallel kernel executions
     - introduced `HasStdOut`

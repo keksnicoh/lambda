@@ -210,9 +210,12 @@ varP = Var <$> identifierP
 expP :: Parser Exp
 expP = P.chainl1 lamVarP operatorP
   where
-    operatorP = P.optional (P.oneOf " ") >> pure App
-    lamVarP = paranthesesP expP <|> lamP <|> varP
-    paranthesesP = P.between (P.char '(') (P.char ')')
+    operatorP = pure App
+    lamVarP =
+      paranthesesP (expP <* P.skipMany (P.oneOf " "))
+        <|> (lamP <* P.skipMany (P.oneOf " "))
+        <|> (varP <* P.skipMany (P.oneOf " "))
+    paranthesesP = P.between (P.char '(' <* P.skipMany (P.oneOf " ")) (P.char ')')
 
 lamP :: Parser Exp
 lamP = do

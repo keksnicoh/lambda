@@ -30,13 +30,13 @@ createKernelAction = do
 
   when (nKernels > 10) $ throwError TooManyKernelsError
 
-  uuid <- getM
+  pk <- getM
   currentTime <- getM
 
   (ioRef, kernel) <- liftIO $ createKernelIoRef currentTime
 
-  modify $ M.insert uuid ioRef
-  pure $ UUIDContainer {uuid = uuid, value = kernel}
+  modify $ M.insert pk ioRef
+  pure $ UUIDContainer {uuid = pk, value = kernel}
 
 -- kernel status --------------------------------------------------------------
 
@@ -47,6 +47,6 @@ kernelByUUIDAction ::
   (MonadState Register m, MonadError KernelStatusError m, MonadIO m) =>
   U.UUID ->
   m Kernel
-kernelByUUIDAction uuid = do
-  ioRef <- gets (M.lookup uuid) >>= getOr (throwError NotFound)
+kernelByUUIDAction pk = do
+  ioRef <- gets (M.lookup pk) >>= getOr (throwError NotFound)
   liftIO $ readIORef ioRef

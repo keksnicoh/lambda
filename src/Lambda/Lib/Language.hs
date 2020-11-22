@@ -14,10 +14,11 @@ module Lambda.Lib.Language where
 
 import Conduit (ConduitT, yield)
 import Control.Applicative (Alternative ((<|>)), liftA2)
-import Control.Monad (join)
+import Control.Monad (join, void)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadState, gets, modify)
 import Data.Data (type (:~:) (Refl))
+import Data.Functor (($>))
 import Data.List (intercalate)
 import qualified Data.Map as M
 import Data.Singletons (Proxy (..), Sing, SingKind (fromSing), withSomeSing)
@@ -52,6 +53,7 @@ data Expression
   | List [Expression] (Maybe DType)
   | Lambda L.Exp
   | Identifier L.Identifier
+  | Substitution Expression L.Exp L.Identifier
   deriving (Show, Eq)
 
 data Statement
@@ -173,6 +175,17 @@ expressionΣ handle = \case
     case handle name argumentsΣ of
       Right v -> v
       Left err -> throwError err
+  Substitution x1 expr identifier -> do
+    expressionΣ handle x1 >>= \case
+      (SDExp :&: e1) -> pureΣ $ L.sub identifier e1 expr
+      (t :&: _) ->
+        throwError $
+          "cannot substiture "
+            ++ show identifier
+            ++ " -> "
+            ++ show expr
+            ++ " into "
+            ++ show (fromSing t)
   where
     valuesToArgumentsΣ = foldr consArgument (SNil :&: HNil)
     pureΣ x = pure (valueΣ x)
@@ -349,28 +362,27 @@ parse = P.parse langP ""
 -- statement parsers ----------------------------------------------------------
 
 langP :: Parser Statement
-langP = P.try evalP <|> P.try assignP <|> eofP
+langP = stmtP <*> contP <|> eofP
+  where
+    stmtP = P.try assignP <|> P.try evalP
+    contP = spacedP (P.oneOf ";") *> langP
 
-evalP :: Parser Statement
-evalP = do
-  stmt <- expressionP
-  spacedP (P.oneOf ";")
-  Expression stmt <$> langP
+evalP :: Parser (Statement -> Statement)
+evalP =
+  Expression <$> expressionP
 
-assignP :: Parser Statement
-assignP = do
-  name <- L.identifierP
-  spacedP (P.oneOf "=")
-  stmt <- expressionP
-  spacedP (P.oneOf ";")
-  Assign name stmt <$> langP
+assignP :: Parser (Statement -> Statement)
+assignP =
+  Assign
+    <$> (L.identifierP <* spacedP (P.oneOf "="))
+    <*> expressionP
 
 eofP :: Parser Statement
 eofP = do
   foo <- P.many P.anyChar
   if T.strip (T.pack foo) == ""
     then return End
-    else P.parserFail $ "derp: " ++ foo
+    else P.parserFail $ "found: " ++ foo
 
 -- expression parsers ---------------------------------------------------------
 
@@ -398,7 +410,7 @@ listP = do
     cont Nothing = itemsP Nothing
 
     nestedP dtype =
-      P.spaces <* wrappedChar '}' '{' P.spaces >> cont (Just $ DList dtype)
+      P.spaces <* wrappedCharP '}' '{' P.spaces >> cont (Just $ DList dtype)
 
     itemsP dtype = do
       elements <- P.chainr (pure <$> expressionP) commaP []
@@ -418,7 +430,7 @@ functionP :: Parser Expression
 functionP =
   Function
     <$> nameP
-    <*> wrapped (spacedP (P.char '[')) (spacedP (P.char ']')) argumentsP
+    <*> wrappedP (spacedP (P.char '[')) (spacedP (P.char ']')) argumentsP
   where
     nameP = P.many (P.oneOf validFuncChars)
     argumentsP = P.chainr1 (pure <$> expressionP) commaP
@@ -426,13 +438,26 @@ functionP =
       "abcdefghijklmnopqrstuvwxyz"
         ++ "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 
+subListP :: Parser [(L.Exp, L.Identifier)]
+subListP = P.chainl ((: []) <$> (subP <* P.spaces)) (P.spaces $> (++)) []
+  where
+    subP =
+      wrappedP (P.char '[') (P.char ']') $
+        spacedP $
+          (,)
+            <$> (L.expP <* spacedP (P.oneOf "/"))
+            <*> L.identifierP
+
 expressionP :: Parser Expression
 expressionP =
-  P.try functionP
-    <|> P.try listP
-    <|> P.try lambdaP
-    <|> P.try identifierExpP
-    <|> intP
+  foldr (\(a, b) y -> Substitution y a b) <$> (expP <* P.spaces) <*> P.try subListP
+  where
+    expP =
+      P.try functionP
+        <|> P.try listP
+        <|> P.try lambdaP
+        <|> P.try identifierExpP
+        <|> intP
 
 identifierExpP :: Parser Expression
 identifierExpP = Identifier <$> beginChar '#' L.identifierP
@@ -442,17 +467,17 @@ identifierExpP = Identifier <$> beginChar '#' L.identifierP
 commaP :: Parser ([a] -> [a] -> [a])
 commaP = spacedP (P.oneOf ",") >> pure (++)
 
-wrappedChar :: Char -> Char -> Parser a -> Parser a
-wrappedChar start end = wrapped (P.char start) (P.char end)
+wrappedCharP :: Char -> Char -> Parser a -> Parser a
+wrappedCharP start end = wrappedP (P.char start) (P.char end)
 
-wrapped :: Parser x -> Parser y -> Parser a -> Parser a
-wrapped start end p = start *> p <* end
+wrappedP :: Parser x -> Parser y -> Parser a -> Parser a
+wrappedP start end p = start *> p <* end
 
 beginChar :: Char -> Parser a -> Parser a
 beginChar start p = P.char start *> p
 
-spacedP :: Parser a -> Parser ()
-spacedP p = P.spaces *> p *> P.spaces
+spacedP :: Parser a -> Parser a
+spacedP = wrappedP P.spaces P.spaces
 
-spaceP :: Parser String
-spaceP = P.many $ P.oneOf " "
+spaceP :: Parser ()
+spaceP = void P.spaces
