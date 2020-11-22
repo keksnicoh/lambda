@@ -1,34 +1,40 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE TypeApplications #-}
 
-module Lambda.Notebook.Action.Execute where
+module Lambda.Notebook.Kernel.Action.Run where
 
 import Conduit (MonadIO (..), yield)
 import Control.Monad (when)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadState, gets)
-import Data.IORef (IORef, readIORef)
+import Data.Aeson (FromJSON)
+import Data.IORef (IORef, modifyIORef', readIORef)
 import Data.List (intercalate)
 import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
+import GHC.Generics (Generic)
 import Lambda.Lib.Language (Statement, StdOut, parse)
-import Lambda.Notebook.Data.Error (getOr)
-import Lambda.Notebook.Data.Kernel
-  ( Kernel,
-    KernelStatus (..),
-    Register,
-    scope,
-    status,
-    updateKernel,
-    updateKernelRunning,
-  )
 import Lambda.Notebook.Dependencies (HasM)
-import Lambda.Notebook.Runtime (execute)
+import Lambda.Notebook.Error (getOr)
+import Lambda.Notebook.Kernel.Model
+  ( Kernel (execution, invoked, scope, status),
+    KernelStatus (Running, RuntimeError, Success),
+    Register,
+  )
+import Lambda.Notebook.Kernel.Runtime (execute)
 import Servant (SourceIO, ToSourceIO (..))
 
 -- demo endpoint --------------------------------------------------------------
+
+data ExecuteReqBody = ExecuteReqBody
+  { code :: String,
+    block :: Int
+  }
+  deriving (Generic, FromJSON)
 
 data RunError = UUIDNotFound | SyntaxError String | KernelIsRunning Kernel
   deriving (Show)
@@ -40,16 +46,16 @@ runService ::
     MonadError RunError m
   ) =>
   U.UUID ->
-  String ->
+  ExecuteReqBody ->
   m (SourceIO String)
-runService uuid code = do
+runService uuid req = do
   kernelIORef <- gets (M.lookup uuid) >>= getKernel
 
   -- kernel must not be running
   kernel <- liftIO $ readIORef kernelIORef
   ensureNotRunning kernel
 
-  statement <- getStatement (parse code)
+  statement <- getStatement (parse (code req))
 
   pure . toSourceIO $ runKernel @IO kernelIORef kernel statement
   where
@@ -82,14 +88,16 @@ yieldError runtimeError = do
   yield ""
   yield runtimeError
 
--- demo endpoint --------------------------------------------------------------
+updateKernelRunning :: MonadIO m => IORef Kernel -> Kernel -> m ()
+updateKernelRunning kernelIORef kernel = do
+  now <- liftIO T.getCurrentTime
+  updateKernel kernelIORef $
+    kernel
+      { invoked = Just now,
+        execution = execution kernel + 1,
+        status = Just Running
+      }
 
-demoEndpoint ::
-  (MonadState Register m, HasM T.UTCTime m, MonadIO m) =>
-  m (SourceIO String)
-demoEndpoint = do
-  let code =
-        "a=bc;hnfPrintSteps[20, (\\xy.x)(\\xy.y)(\\xy.x)(\\xy.x)(\\xy.y)"
-          ++ "(\\xy.x)(\\xy.x)(\\xy.y)(\\xy.x)(\\xy.x)(\\xy.y)(\\xy.x)];"
-      Right statement = parse code
-  pure $ toSourceIO (execute @IO M.empty statement >>= yield . show)
+updateKernel :: MonadIO m => IORef Kernel -> Kernel -> m ()
+updateKernel kernelIORef kernel = do
+  liftIO $ modifyIORef' kernelIORef (const kernel)

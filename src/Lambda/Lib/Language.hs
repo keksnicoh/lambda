@@ -180,12 +180,13 @@ expressionΣ handle = \case
       (SDExp :&: e1) -> pureΣ $ L.sub identifier e1 expr
       (t :&: _) ->
         throwError $
-          "cannot substiture "
-            ++ show identifier
-            ++ " -> "
-            ++ show expr
-            ++ " into "
+          "type error: cannot substitute <"
             ++ show (fromSing t)
+            ++ ">["
+            ++ show expr
+            ++ "/"
+            ++ identifier
+            ++ "]"
   where
     valuesToArgumentsΣ = foldr consArgument (SNil :&: HNil)
     pureΣ x = pure (valueΣ x)
@@ -438,16 +439,11 @@ functionP =
       "abcdefghijklmnopqrstuvwxyz"
         ++ "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
 
-subListP :: Parser [(L.Exp, L.Identifier)]
-subListP = P.chainl ((: []) <$> (subP <* P.spaces)) (P.spaces $> (++)) []
-  where
-    subP =
-      wrappedP (P.char '[') (P.char ']') $
-        spacedP $
-          (,)
-            <$> (L.expP <* spacedP (P.oneOf "/"))
-            <*> L.identifierP
-
+-- | parse epxressions
+-- <expression>
+-- <expression>[a/b]
+-- <expression>[a/b][c/d]
+-- ...
 expressionP :: Parser Expression
 expressionP =
   foldr (\(a, b) y -> Substitution y a b) <$> (expP <* P.spaces) <*> P.try subListP
@@ -458,6 +454,18 @@ expressionP =
         <|> P.try lambdaP
         <|> P.try identifierExpP
         <|> intP
+
+    -- [a/b], [a/b][c/d], ...
+    subListP :: Parser [(L.Exp, L.Identifier)]
+    subListP = P.chainl ((: []) <$> (subP <* P.spaces)) (P.spaces $> (++)) []
+
+    -- [a/b]
+    subP =
+      wrappedP (P.char '[') (P.char ']') $
+        spacedP $
+          (,)
+            <$> (L.expP <* spacedP (P.oneOf "/"))
+            <*> L.identifierP
 
 identifierExpP :: Parser Expression
 identifierExpP = Identifier <$> beginChar '#' L.identifierP

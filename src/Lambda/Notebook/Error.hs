@@ -7,7 +7,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE TypeFamilies #-}
 
-module Lambda.Notebook.Data.Error where
+module Lambda.Notebook.Error where
 
 import Control.Monad.Except (ExceptT (..), MonadError (throwError), runExceptT)
 import Data.Aeson (ToJSON (..), encode)

@@ -8,36 +8,27 @@ import Control.Monad.Reader (ReaderT (runReaderT))
 import Data.IORef (newIORef)
 import qualified Data.Map as M
 import Lambda.Notebook.App (AppT (runAppT), Env (..))
-import Lambda.Notebook.Controller.Execute
-  ( ExecuteAPI,
-    executeHandler,
-  )
-import Lambda.Notebook.Controller.Kernel
-  ( KernelAPI,
-    kernelHandler,
-  )
-import Lambda.Notebook.Data.Kernel (Register)
+import Lambda.Notebook.Kernel.API (KernelAPI, kernelHandler)
+import Lambda.Notebook.Kernel.Model (Register)
 import Network.Wai.Handler.Warp (Port, run)
 import Servant
   ( Application,
     Proxy (..),
     hoistServer,
     serve,
-    type (:<|>) (..),
     type (:>),
   )
 
 -- main api -------------------------------------------------------------------
 
-type API = "v1" :> (("kernel" :> KernelAPI) :<|> ("execute" :> ExecuteAPI))
+type API = "v1" :> ("kernel" :> KernelAPI)
 
 -- server----------------------------------------------------------------------
 
 notebookApp :: Env -> Application
 notebookApp s =
   serve notebookApi $
-    hoistServer notebookApi (nt s) $
-      kernelHandler :<|> executeHandler
+    hoistServer notebookApi (nt s) $ kernelHandler
   where
     nt s' x = runReaderT (runAppT x) s'
     notebookApi = Proxy @API
@@ -46,5 +37,4 @@ notebookServer :: Port -> IO ()
 notebookServer port = do
   let register = M.empty :: Register
   ioRef <- newIORef register
-  let env = Env ioRef
-  Network.Wai.Handler.Warp.run port (notebookApp env)
+  Network.Wai.Handler.Warp.run port (notebookApp (Env ioRef))

@@ -2,12 +2,9 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Lambda.Notebook.Runtime (execute, RuntimeT (..)) where
+module Lambda.Notebook.Kernel.Runtime (execute, RuntimeT (..)) where
 
-import Control.Monad.Except
-  ( ExceptT,
-    MonadError,
-  )
+import Control.Monad.Except (ExceptT, MonadError)
 import Control.Monad.Reader (MonadReader (ask), ReaderT (..))
 import Control.Monad.State (MonadIO (..), MonadState (get, put))
 import Data.Conduit (ConduitT, transPipe)
@@ -29,6 +26,13 @@ newtype RuntimeT m a = RuntimeT
       MonadError String
     )
 
+runRuntimeC ::
+  (MonadIO m) =>
+  IORef Scope ->
+  ConduitT () String (RuntimeT m) a ->
+  ConduitT () String m (Either String a)
+runRuntimeC runtime = runExceptC . runReaderC runtime . transPipe runRuntimeT
+
 -- haskell API ----------------------------------------------------------------
 
 instance MonadIO m => MonadState Scope (RuntimeT m) where
@@ -46,14 +50,7 @@ execute ::
   ConduitT () String m (Either String Scope)
 execute scope statement = do
   runtime <- liftIO $ newIORef scope
-  result <- runner runtime (eval handler statement)
+  result <- runRuntimeC runtime (eval handler statement)
   case result of
     Right () -> Right <$> liftIO (readIORef runtime)
     Left e -> pure (Left e)
-
-runner ::
-  (MonadIO m) =>
-  IORef Scope ->
-  ConduitT () String (RuntimeT m) a ->
-  ConduitT () String m (Either String a)
-runner runtime = runExceptC . runReaderC runtime . transPipe runRuntimeT

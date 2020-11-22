@@ -25,10 +25,10 @@ import Data.IORef (IORef, modifyIORef', readIORef)
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import qualified Data.UUID.V4 as U
-import Lambda.Notebook.Data.Kernel (Register)
 import Lambda.Notebook.Dependencies
   ( HasM (..),
   )
+import Lambda.Notebook.Kernel.Model (Register)
 import Servant (throwError)
 
 -- application environment ----------------------------------------------------

@@ -39,6 +39,7 @@ dependencies:
 - conduit
 - resourcet
 - transformers
+- vector
 
 library:
   source-dirs: 
