@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE ExplicitNamespaces #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -175,7 +176,7 @@ expressionΣ handle = \case
     case handle name argumentsΣ of
       Right v -> v
       Left err -> throwError err
-  Substitution x1 expr identifier -> do
+  Substitution x1 expr identifier ->
     expressionΣ handle x1 >>= \case
       (SDExp :&: e1) -> pureΣ $ L.sub identifier e1 expr
       (t :&: _) ->
@@ -202,10 +203,9 @@ expressionListΣ cont = \case
   [] -> \case
     -- empty list must have type specified, otherwise the "ad-hoc polymorphism"
     -- of the handlers could lead to undecidable situations.
-    Just dtype ->
-      pure $
-        withSomeSing dtype $ \(dtypeSing :: Sing dtype) ->
-          SDList dtypeSing :&: ([] :: [TypeX dtype])
+    Just dtype -> pure $
+      withSomeSing dtype \(dtypeSing :: Sing dtype) ->
+        SDList dtypeSing :&: ([] :: [TypeX dtype])
     Nothing -> throwError errorEmptyList
   (c : cs) ->
     \dtypeOpt -> do
@@ -218,7 +218,7 @@ expressionListΣ cont = \case
             -- if type was specified and non-empty list was evaluated, then we
             -- will prove that inferred type matches specified type
             Just dtype ->
-              withSomeSing dtype $ \dtypeSing ->
+              withSomeSing dtype \dtypeSing ->
                 case inferredType %~ SDList dtypeSing of
                   Proved Refl -> pure result
                   Disproved _ ->
