@@ -30,9 +30,8 @@ import Servant (SourceIO, ToSourceIO (..))
 
 -- demo endpoint --------------------------------------------------------------
 
-data ExecuteReqBody = ExecuteReqBody
-  { code :: String,
-    block :: Int
+newtype ExecuteReqBody = ExecuteReqBody
+  { code :: String
   }
   deriving (Generic, FromJSON)
 

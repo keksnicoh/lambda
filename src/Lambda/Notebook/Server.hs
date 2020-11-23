@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeOperators #-}
@@ -10,25 +11,37 @@ import qualified Data.Map as M
 import Lambda.Notebook.App (AppT (runAppT), Env (..))
 import Lambda.Notebook.Kernel.API (KernelAPI, kernelHandler)
 import Lambda.Notebook.Kernel.Model (Register)
+import Lambda.Notebook.Persistance.API
+  ( PersistanceAPI,
+    persistanceHandler,
+  )
+import Lambda.Notebook.Persistance.Header (NotebookStorage)
+import Lambda.Notebook.Persistance.Model ()
 import Network.Wai.Handler.Warp (Port, run)
 import Servant
   ( Application,
     Proxy (..),
     hoistServer,
     serve,
+    type (:<|>) (..),
     type (:>),
   )
 
 -- main api -------------------------------------------------------------------
 
-type API = "v1" :> ("kernel" :> KernelAPI)
+type API =
+  "v1"
+    :> ( ("kernel" :> KernelAPI)
+           :<|> "persist" :> PersistanceAPI
+       )
 
 -- server----------------------------------------------------------------------
 
 notebookApp :: Env -> Application
 notebookApp s =
-  serve notebookApi $
-    hoistServer notebookApi (nt s) $ kernelHandler
+  serve notebookApi do
+    hoistServer notebookApi (nt s) do
+      kernelHandler :<|> persistanceHandler (kernels s) (notebookStorage s)
   where
     nt s' x = runReaderT (runAppT x) s'
     notebookApi = Proxy @API
@@ -36,5 +49,14 @@ notebookApp s =
 notebookServer :: Port -> IO ()
 notebookServer port = do
   let register = M.empty :: Register
+      notebook = M.empty :: NotebookStorage
   ioRef <- newIORef register
-  Network.Wai.Handler.Warp.run port (notebookApp (Env ioRef))
+  ioRefNotebook <- newIORef notebook
+  let env =
+        Env
+          { kernels = ioRef,
+            notebookMaxBlocks = 10, -- XXX read from env
+            notebookMaxCodeSize = 100, -- XXX read from env
+            notebookStorage = ioRefNotebook
+          }
+  Network.Wai.Handler.Warp.run port (notebookApp env)

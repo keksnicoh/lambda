@@ -1,5 +1,8 @@
 # Changelog for lambda
 
+- [23.11.2020]
+    - introduced persist API
+    - introduced IORef Map Storage
 - [22.11.2020]
     - introduced subsitution expressions of form `a[b/a]`
 - [19.11.2020]

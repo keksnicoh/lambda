@@ -27,14 +27,20 @@ import qualified Data.UUID as U
 import qualified Data.UUID.V4 as U
 import Lambda.Notebook.Dependencies
   ( HasM (..),
+    HasNotebookMaxBlocks (..),
+    HasNotebookMaxCodeSize (..),
   )
 import Lambda.Notebook.Kernel.Model (Register)
 import Servant (throwError)
+import Lambda.Notebook.Persistance.Header ( NotebookStorage )
 
 -- application environment ----------------------------------------------------
 
-newtype Env = Env
-  { kernels :: IORef Register
+data Env = Env
+  { kernels :: IORef Register,
+    notebookMaxBlocks :: Int,
+    notebookMaxCodeSize :: Int,
+    notebookStorage :: IORef NotebookStorage
   }
 
 newtype AppT m a = AppT {runAppT :: ReaderT Env m a}
@@ -60,3 +66,9 @@ instance MonadIO m => HasM T.UTCTime (AppT m) where
 
 instance MonadIO m => HasM U.UUID (AppT m) where
   getM = liftIO U.nextRandom
+
+instance HasNotebookMaxBlocks Env where
+  getNotebookMaxBlocks = notebookMaxBlocks
+
+instance HasNotebookMaxCodeSize Env where
+  getNotebookMaxCodeSize = notebookMaxCodeSize
