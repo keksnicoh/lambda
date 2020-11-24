@@ -10,15 +10,14 @@ import Data.IORef (IORef)
 import Data.List (find)
 import Data.Maybe (isJust, isNothing)
 import qualified Data.UUID as U
-import Lambda.Notebook.Dependencies
+import Lambda.Notebook.Kernel.Model (Kernel)
+import Lambda.Notebook.Persistance.Header
   ( HasNotebookMaxBlocks (..),
     HasNotebookMaxCodeSize (..),
+    SaveNotebookM,
   )
-import Lambda.Notebook.Kernel.Model (Kernel)
 import Lambda.Notebook.Persistance.Model (Block (..), Notebook (..))
 import Lambda.Notebook.Storage (LookupM)
-import Lambda.Notebook.Persistance.Header ( SaveNotebookM )
-
 
 data SaveNotebookError
   = SaveNotbookKernelNotFound

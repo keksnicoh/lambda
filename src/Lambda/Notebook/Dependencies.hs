@@ -27,9 +27,3 @@ instance ToSourceIO o (ConduitT i o IO ()) where
       go (NeedInput _ip up) = S.Skip (go (up ()))
       go (PipeM m) = S.Effect $ fmap go m
       go (Leftover p _l) = S.Skip (go p)
-
-class HasNotebookMaxBlocks e where
-  getNotebookMaxBlocks :: e -> Int
-
-class HasNotebookMaxCodeSize e where
-  getNotebookMaxCodeSize :: e -> Int

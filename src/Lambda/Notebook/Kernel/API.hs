@@ -33,7 +33,9 @@ import Lambda.Notebook.Kernel.Action.Status
 import Lambda.Notebook.Kernel.Model (Kernel, Register, UUIDContainer)
 import Lambda.Notebook.Kernel.Runtime (runStatement)
 import Lambda.Notebook.Storage
-  ( lookupIORefMap,
+  ( createHandleIORef,
+    insertIORefMap,
+    lookupIORefMap,
     modifyHandleIORef,
     readHandleIORef,
   )
@@ -64,7 +66,7 @@ type KernelAPI =
     :<|> ExecuteStatementEndpoint
 
 kernelHandler ::
-  IORef Register ->
+  IORef (Register IORef) ->
   AppT Handler (UUIDContainer Kernel)
     :<|> (U.UUID -> AppT Handler Kernel)
     :<|> (U.UUID -> ExecuteReqBody -> AppT Handler (SourceIO String))
@@ -72,7 +74,11 @@ kernelHandler ioRefRegister =
   let createHandler =
         withErrorHandling0
           handleCreateKernelError
-          createKernelAction
+          ( createKernelAction
+              (readHandleIORef ioRefRegister)
+              (insertIORefMap ioRefRegister)
+              createHandleIORef
+          )
 
       statusHandler =
         withErrorHandling1

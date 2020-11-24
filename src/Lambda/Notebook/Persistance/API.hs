@@ -25,7 +25,7 @@ import Lambda.Notebook.Persistance.Action.SaveNotebook
   )
 import Lambda.Notebook.Persistance.Header (NotebookStorage)
 import Lambda.Notebook.Persistance.Model (Notebook)
-import Lambda.Notebook.Storage (inserIORefMap, lookupIORefMap)
+import Lambda.Notebook.Storage (insertIORefMap, lookupIORefMap)
 import Servant
   ( Capture,
     Get,
@@ -46,7 +46,7 @@ type PersistanceAPI =
   SaveNotebookEndpoint :<|> LoadNotebookEndpoint
 
 persistanceHandler ::
-  IORef Register ->
+  IORef (Register IORef) ->
   IORef NotebookStorage ->
   (U.UUID -> Notebook -> AppT Handler ())
     :<|> (U.UUID -> AppT Handler Notebook)
@@ -55,7 +55,7 @@ persistanceHandler kernelStorage notebookStorage =
     saveEndpointErrorHandler
     ( saveNotebook
         (lookupIORefMap kernelStorage)
-        (inserIORefMap notebookStorage)
+        (insertIORefMap notebookStorage)
     )
     :<|> withErrorHandling1
       loadNotebookErrorHandler

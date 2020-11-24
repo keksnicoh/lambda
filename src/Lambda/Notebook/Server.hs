@@ -6,7 +6,7 @@
 module Lambda.Notebook.Server where
 
 import Control.Monad.Reader (ReaderT (runReaderT))
-import Data.IORef (newIORef)
+import Data.IORef (IORef, newIORef)
 import qualified Data.Map as M
 import Lambda.Notebook.App (AppT (runAppT), Env (..))
 import Lambda.Notebook.Kernel.API (KernelAPI, kernelHandler)
@@ -30,10 +30,7 @@ import Servant
 -- main api -------------------------------------------------------------------
 
 type API =
-  "v1"
-    :> ( ("kernel" :> KernelAPI)
-           :<|> "persist" :> PersistanceAPI
-       )
+  "v1" :> (("kernel" :> KernelAPI) :<|> "persist" :> PersistanceAPI)
 
 -- server----------------------------------------------------------------------
 
@@ -49,7 +46,7 @@ notebookApp s =
 
 notebookServer :: Port -> IO ()
 notebookServer port = do
-  let register = M.empty :: Register
+  let register = M.empty :: (Register IORef)
       notebook = M.empty :: NotebookStorage
   ioRef <- newIORef register
   ioRefNotebook <- newIORef notebook
@@ -58,6 +55,7 @@ notebookServer port = do
           { kernels = ioRef,
             notebookMaxBlocks = 10, -- XXX read from env
             notebookMaxCodeSize = 100, -- XXX read from env
-            notebookStorage = ioRefNotebook
+            notebookStorage = ioRefNotebook,
+            maxNumberOfKernels = 10 -- XXX read from env
           }
   Network.Wai.Handler.Warp.run port (notebookApp env)

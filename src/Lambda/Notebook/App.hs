@@ -27,21 +27,28 @@ import qualified Data.UUID as U
 import qualified Data.UUID.V4 as U
 import Lambda.Notebook.Dependencies
   ( HasM (..),
-    HasNotebookMaxBlocks (..),
-    HasNotebookMaxCodeSize (..),
   )
+import Lambda.Notebook.Kernel.Header (HasMaxNumberOfKernels (..))
 import Lambda.Notebook.Kernel.Model (Register)
+import Lambda.Notebook.Persistance.Header
+  ( HasNotebookMaxBlocks (..),
+    HasNotebookMaxCodeSize (..),
+    NotebookStorage,
+  )
 import Servant (throwError)
-import Lambda.Notebook.Persistance.Header ( NotebookStorage )
 
 -- application environment ----------------------------------------------------
 
 data Env = Env
-  { kernels :: IORef Register,
+  { kernels :: IORef (Register IORef),
     notebookMaxBlocks :: Int,
     notebookMaxCodeSize :: Int,
-    notebookStorage :: IORef NotebookStorage
+    notebookStorage :: IORef NotebookStorage,
+    maxNumberOfKernels :: Int
   }
+
+instance HasMaxNumberOfKernels Env where
+  getMaxNumberOfKernels = maxNumberOfKernels
 
 newtype AppT m a = AppT {runAppT :: ReaderT Env m a}
   deriving (Functor, Applicative, Monad, MonadReader Env, MonadIO)
@@ -53,7 +60,7 @@ instance MonadError e m => MonadError e (AppT m) where
   catchError a b = AppT $ catchError (runAppT a) (runAppT . b)
 
 -- XXX is this safe when multiple threads are used
-instance MonadIO m => MonadState Register (AppT m) where
+instance MonadIO m => MonadState (Register IORef) (AppT m) where
   get = asks kernels >>= liftIO . readIORef
   put s = do
     env <- ask

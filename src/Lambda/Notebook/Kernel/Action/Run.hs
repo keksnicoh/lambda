@@ -38,7 +38,10 @@ newtype ExecuteReqBody = ExecuteReqBody
   }
   deriving (Generic, FromJSON)
 
-data RunError = UUIDNotFound | SyntaxError String | KernelIsRunning Kernel
+data RunError
+  = UUIDNotFound
+  | SyntaxError String
+  | KernelIsRunning Kernel
   deriving (Show)
 
 runAction ::

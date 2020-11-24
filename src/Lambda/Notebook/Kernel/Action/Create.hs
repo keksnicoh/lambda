@@ -1,43 +1,59 @@
 {-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Lambda.Notebook.Kernel.Action.Create where
 
-import Control.Monad.Except (MonadError (throwError), when)
-import Control.Monad.IO.Class (MonadIO (..))
-import Control.Monad.State (MonadState, gets, modify)
-import Data.IORef (IORef, newIORef)
+import Control.Monad.Except (MonadError (throwError))
+import Control.Monad.Reader (MonadIO, MonadReader, asks, when)
 import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import Lambda.Notebook.Dependencies (HasM (..))
-import Lambda.Notebook.Kernel.Model (Kernel (..), Register, UUIDContainer (..), kernelEmpty)
+import Lambda.Notebook.Kernel.Header
+  ( CreateKernelHandleM,
+    HasMaxNumberOfKernels (..),
+    ReadRegisterM,
+    RegisterKernelHandleM,
+  )
+import Lambda.Notebook.Kernel.Model
+  ( Kernel (..),
+    UUIDContainer (..),
+    kernelEmpty,
+  )
 
 data CreateKernelError = TooManyKernelsError
 
 createKernelAction ::
-  ( MonadState Register m, -- XXX remove state
-    HasM T.UTCTime m,
+  ( HasM T.UTCTime m,
     HasM U.UUID m,
     MonadError CreateKernelError m,
+    MonadReader e m,
+    HasMaxNumberOfKernels e,
     MonadIO m
   ) =>
+  -- access kernel handle register
+  ReadRegisterM h m ->
+  RegisterKernelHandleM h m ->
+  -- new kernel handles are created
+  CreateKernelHandleM h m ->
+  -- result
   m (UUIDContainer Kernel)
-createKernelAction = do
-  nKernels <- gets M.size
-  when (nKernels > 10) do
+createKernelAction readRegister registerKernel createHandle = do
+  nKernels <- M.size <$> readRegister
+  maxNumberOfKernels <- asks getMaxNumberOfKernels
+  when (nKernels > maxNumberOfKernels) do
     throwError TooManyKernelsError
 
-  currentTime <- getM
-  (ioRef, kernel) <- liftIO $ createKernelIoRef currentTime
+  kernel <- kernelEmpty <$> getM @T.UTCTime
+  handle <- createHandle kernel
 
-  pk <- getM
-  modify $ M.insert pk ioRef
-  pure $ UUIDContainer {uuid = pk, value = kernel}
+  pk <- getM @U.UUID
+  registerKernel pk handle
 
-createKernelIoRef :: T.UTCTime -> IO (IORef Kernel, Kernel)
-createKernelIoRef currentTime =
-  (,kernel) <$> newIORef kernel
-  where
-    kernel = kernelEmpty currentTime
+  pure
+    UUIDContainer
+      { uuid = pk,
+        value = kernel
+      }

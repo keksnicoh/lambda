@@ -15,11 +15,9 @@ module Lambda.Notebook.Kernel.Model
 where
 
 import Data.Aeson (ToJSON)
-import Data.IORef (IORef)
 import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
-import qualified Data.Vector as V
 import GHC.Generics (Generic)
 import Lambda.Lib.Language (Scope)
 
@@ -36,12 +34,11 @@ data Kernel = Kernel
     scope :: Scope,
     created :: T.UTCTime,
     invoked :: Maybe T.UTCTime,
-    status :: Maybe KernelStatus,
-    blocks :: V.Vector String
+    status :: Maybe KernelStatus
   }
   deriving (Generic, ToJSON, Show)
 
-type Register = M.Map U.UUID (IORef Kernel)
+type Register h = M.Map U.UUID (h Kernel)
 
 -- mapper ---------------------------------------------------------------------
 
@@ -60,8 +57,7 @@ kernelEmpty now =
       scope = M.empty,
       created = now,
       status = Nothing,
-      invoked = Nothing,
-      blocks = V.replicate 100 ""
+      invoked = Nothing
     }
 
 kernelSucces :: Scope -> Kernel -> Kernel

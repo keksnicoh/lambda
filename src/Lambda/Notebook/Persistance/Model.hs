@@ -17,7 +17,5 @@ newtype Notebook = Notebook
   }
   deriving (Generic, ToJSON, FromJSON)
 
---
-
 emptyNotebook :: Notebook
 emptyNotebook = Notebook []
