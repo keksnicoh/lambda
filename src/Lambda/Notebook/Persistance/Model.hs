@@ -8,7 +8,7 @@ import GHC.Generics (Generic)
 
 data Block = Block
   { code :: String,
-    execution :: Int
+    execution :: Maybe Int
   }
   deriving (Generic, ToJSON, FromJSON)
 

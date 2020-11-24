@@ -54,7 +54,7 @@ notebookServer port = do
         Env
           { kernels = ioRef,
             notebookMaxBlocks = 10, -- XXX read from env
-            notebookMaxCodeSize = 100, -- XXX read from env
+            notebookMaxCodeSize = 10000, -- XXX read from env
             notebookStorage = ioRefNotebook,
             maxNumberOfKernels = 10 -- XXX read from env
           }
