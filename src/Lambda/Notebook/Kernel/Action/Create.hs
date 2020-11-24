@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE TupleSections #-}
 
@@ -16,7 +17,7 @@ import Lambda.Notebook.Kernel.Model (Kernel (..), Register, UUIDContainer (..), 
 data CreateKernelError = TooManyKernelsError
 
 createKernelAction ::
-  ( MonadState Register m,
+  ( MonadState Register m, -- XXX remove state
     HasM T.UTCTime m,
     HasM U.UUID m,
     MonadError CreateKernelError m,
@@ -25,7 +26,8 @@ createKernelAction ::
   m (UUIDContainer Kernel)
 createKernelAction = do
   nKernels <- gets M.size
-  when (nKernels > 10) $ throwError TooManyKernelsError
+  when (nKernels > 10) do
+    throwError TooManyKernelsError
 
   currentTime <- getM
   (ioRef, kernel) <- liftIO $ createKernelIoRef currentTime

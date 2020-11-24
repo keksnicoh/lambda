@@ -7,7 +7,10 @@ module Lambda.Notebook.Kernel.Model
     UUIDContainer (..),
     Register,
     kernelEmpty,
-    kernelExecute
+    kernelExecute,
+    kernelSucces,
+    kernelRuntimeError,
+    kernelRunning,
   )
 where
 
@@ -59,4 +62,25 @@ kernelEmpty now =
       status = Nothing,
       invoked = Nothing,
       blocks = V.replicate 100 ""
+    }
+
+kernelSucces :: Scope -> Kernel -> Kernel
+kernelSucces newScope kernel =
+  kernel
+    { scope = newScope,
+      status = Just Success
+    }
+
+kernelRuntimeError :: Kernel -> Kernel
+kernelRuntimeError kernel =
+  kernel
+    { status = Just RuntimeError
+    }
+
+kernelRunning :: T.UTCTime -> Kernel -> Kernel
+kernelRunning now kernel =
+  kernel
+    { invoked = Just now,
+      execution = execution kernel + 1,
+      status = Just Running
     }

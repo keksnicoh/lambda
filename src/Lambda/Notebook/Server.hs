@@ -41,7 +41,8 @@ notebookApp :: Env -> Application
 notebookApp s =
   serve notebookApi do
     hoistServer notebookApi (nt s) do
-      kernelHandler :<|> persistanceHandler (kernels s) (notebookStorage s)
+      kernelHandler (kernels s)
+        :<|> persistanceHandler (kernels s) (notebookStorage s)
   where
     nt s' x = runReaderT (runAppT x) s'
     notebookApi = Proxy @API

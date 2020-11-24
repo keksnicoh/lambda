@@ -2,7 +2,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 
-module Lambda.Notebook.Kernel.Runtime (execute, RuntimeT (..)) where
+module Lambda.Notebook.Kernel.Runtime (runStatement, RuntimeT (..)) where
 
 import Control.Monad.Except (ExceptT, MonadError)
 import Control.Monad.Reader (MonadReader (ask), ReaderT (..))
@@ -10,7 +10,8 @@ import Control.Monad.State (MonadIO (..), MonadState (get, put))
 import Data.Conduit (ConduitT, transPipe)
 import Data.Conduit.Lift (runExceptC, runReaderC)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
-import Lambda.Lib.Language (Scope, Statement, eval, handler)
+import Lambda.Lib.Language (Scope, eval, handler)
+import Lambda.Notebook.Kernel.Header (RunStatementM)
 
 -- statement evaluation runtime -----------------------------------------------
 
@@ -43,12 +44,8 @@ instance MonadIO m => MonadState Scope (RuntimeT m) where
 
 -- action ---------------------------------------------------------------------
 
-execute ::
-  MonadIO m =>
-  Scope ->
-  Statement ->
-  ConduitT () String m (Either String Scope)
-execute scope statement = do
+runStatement :: MonadIO m => RunStatementM m
+runStatement scope statement = do
   runtime <- liftIO $ newIORef scope
   result <- runRuntimeC runtime (eval handler statement)
   case result of
