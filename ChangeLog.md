@@ -5,6 +5,7 @@
 ## Unreleased changes
 
 - [25.11.2020]
+    - add list notebooks endpoint
     - reconcept: Notebook persitance layer
 - [23.11.2020]
     - introduced persist API

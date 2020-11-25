@@ -22,6 +22,7 @@ import Lambda.Notebook.Persistance.Action.CreateNotebook
   ( CreateNotebookError (..),
     createNotebook,
   )
+import Lambda.Notebook.Persistance.Action.ListNotebooks (listNotebooks)
 import Lambda.Notebook.Persistance.Action.LoadNotebook
   ( LoadNotebookError (..),
     loadNotebook,
@@ -57,17 +58,19 @@ import Servant
 -- handler --------------------------------------------------------------------
 
 type PersistanceAPI =
-  CreateNotebookEndpoint :<|> SaveNotebookEndpoint :<|> LoadNotebookEndpoint
+  ListNotebooksEndpoint :<|> CreateNotebookEndpoint :<|> SaveNotebookEndpoint :<|> LoadNotebookEndpoint
 
 persistanceHandler ::
   IORef (Register IORef) ->
   IORef NotebookStorage ->
-  AppT Handler (IdentifiedValue U.UUID Notebook)
+  AppT Handler [IdentifiedValue U.UUID String]
+    :<|> AppT Handler (IdentifiedValue U.UUID Notebook)
     :<|> (U.UUID -> Notebook -> AppT Handler ())
     :<|> (U.UUID -> AppT Handler Notebook)
 persistanceHandler kernelStorage notebookStorage =
-  createNotebookHandler :<|> saveNotebookHandler :<|> loadNotebookHandler
+  listNotebookHandler :<|> createNotebookHandler :<|> saveNotebookHandler :<|> loadNotebookHandler
   where
+    listNotebookHandler = listNotebooks (M.toList <$> readHandleIORef notebookStorage)
     createNotebookHandler =
       withErrorHandling0
         createNotebookErrorHandler
@@ -132,3 +135,7 @@ createNotebookErrorHandler ::
   m r
 createNotebookErrorHandler = \case
   TooManyNotebooks n -> errorWithMessage err409 "too many notebooks exist" n
+
+-- list notebooks -------------------------------------------------------------
+
+type ListNotebooksEndpoint = Get '[JSON] [IdentifiedValue U.UUID String]

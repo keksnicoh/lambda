@@ -30,7 +30,7 @@ import Servant
 -- main api -------------------------------------------------------------------
 
 type API =
-  "v1" :> (("kernel" :> KernelAPI) :<|> "persist" :> PersistanceAPI)
+  "v1" :> (("kernel" :> KernelAPI) :<|> "notebook" :> PersistanceAPI)
 
 -- server----------------------------------------------------------------------
 

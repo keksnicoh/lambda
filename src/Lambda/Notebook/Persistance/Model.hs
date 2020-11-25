@@ -14,10 +14,11 @@ data Block = Block
   deriving (Generic, ToJSON, FromJSON)
 
 data Notebook = Notebook
-  { kernelPk :: Maybe U.UUID,
+  { title :: String,
+    kernelPk :: Maybe U.UUID,
     blocks :: [Block]
   }
   deriving (Generic, ToJSON, FromJSON)
 
 emptyNotebook :: Notebook
-emptyNotebook = Notebook Nothing []
+emptyNotebook = Notebook "Untitled" Nothing []
