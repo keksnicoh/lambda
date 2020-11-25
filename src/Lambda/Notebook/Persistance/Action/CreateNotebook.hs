@@ -18,6 +18,8 @@ import Lambda.Notebook.Persistance.Model
   )
 import Lambda.Notebook.Storage (IdentifiedValue (..))
 
+-- action ---------------------------------------------------------------------
+
 newtype CreateNotebookError
   = TooManyNotebooks Int
 
@@ -31,11 +33,19 @@ createNotebook ::
   SaveNotebookM m ->
   m (IdentifiedValue U.UUID Notebook)
 createNotebook getNumberOfNotebooks persistHandler = do
+  -- validate number of notebook threshold
   numberOfNotebooks <- getNumberOfNotebooks
   maxNumberOfNotebook <- asks getMaxNotebookNumber
   when (numberOfNotebooks >= maxNumberOfNotebook) do
     throwError $ TooManyNotebooks maxNumberOfNotebook
 
+  -- create & persist empty notebook
   uuid <- getM
   persistHandler uuid emptyNotebook
-  pure IdentifiedValue {pk = uuid, value = emptyNotebook}
+
+  -- combine result
+  pure
+    IdentifiedValue
+      { pk = uuid,
+        value = emptyNotebook
+      }
