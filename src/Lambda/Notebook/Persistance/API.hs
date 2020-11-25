@@ -7,14 +7,21 @@ module Lambda.Notebook.Persistance.API where
 
 import Control.Monad.Except (MonadError)
 import Data.IORef (IORef)
+import qualified Data.Map as M
 import qualified Data.UUID as U
 import Lambda.Notebook.App (AppT)
 import Lambda.Notebook.Error
   ( errorWithCode,
+    errorWithMessage,
+    withErrorHandling0,
     withErrorHandling1,
     withErrorHandling2,
   )
 import Lambda.Notebook.Kernel.Model (Register)
+import Lambda.Notebook.Persistance.Action.CreateNotebook
+  ( CreateNotebookError (..),
+    createNotebook,
+  )
 import Lambda.Notebook.Persistance.Action.LoadNotebook
   ( LoadNotebookError (..),
     loadNotebook,
@@ -25,17 +32,24 @@ import Lambda.Notebook.Persistance.Action.SaveNotebook
   )
 import Lambda.Notebook.Persistance.Header (NotebookStorage)
 import Lambda.Notebook.Persistance.Model (Notebook)
-import Lambda.Notebook.Storage (insertIORefMap, lookupIORefMap)
+import Lambda.Notebook.Storage
+  ( IdentifiedValue,
+    insertIORefMap,
+    lookupIORefMap,
+    readHandleIORef,
+  )
 import Servant
   ( Capture,
     Get,
     Handler,
     JSON,
     Post,
+    Put,
     ReqBody,
     ServerError,
     err400,
     err404,
+    err409,
     type (:<|>) (..),
     type (:>),
   )
@@ -43,26 +57,41 @@ import Servant
 -- handler --------------------------------------------------------------------
 
 type PersistanceAPI =
-  SaveNotebookEndpoint :<|> LoadNotebookEndpoint
+  CreateNotebookEndpoint :<|> SaveNotebookEndpoint :<|> LoadNotebookEndpoint
 
 persistanceHandler ::
   IORef (Register IORef) ->
   IORef NotebookStorage ->
-  (U.UUID -> Notebook -> AppT Handler ())
+  AppT Handler (IdentifiedValue U.UUID Notebook)
+    :<|> (U.UUID -> Notebook -> AppT Handler ())
     :<|> (U.UUID -> AppT Handler Notebook)
 persistanceHandler kernelStorage notebookStorage =
-  withErrorHandling2
-    saveEndpointErrorHandler
-    ( saveNotebook
-        (lookupIORefMap kernelStorage)
-        (insertIORefMap notebookStorage)
-    )
-    :<|> withErrorHandling1
-      loadNotebookErrorHandler
-      ( loadNotebook
-          (lookupIORefMap kernelStorage)
-          (lookupIORefMap notebookStorage)
-      )
+  createNotebookHandler :<|> saveNotebookHandler :<|> loadNotebookHandler
+  where
+    createNotebookHandler =
+      withErrorHandling0
+        createNotebookErrorHandler
+        ( createNotebook
+            (M.size <$> readHandleIORef notebookStorage)
+            (insertIORefMap notebookStorage)
+        )
+
+    saveNotebookHandler =
+      withErrorHandling2
+        saveEndpointErrorHandler
+        ( saveNotebook
+            (lookupIORefMap notebookStorage)
+            (lookupIORefMap kernelStorage)
+            (insertIORefMap notebookStorage)
+        )
+
+    loadNotebookHandler =
+      withErrorHandling1
+        loadNotebookErrorHandler
+        ( loadNotebook
+            (lookupIORefMap kernelStorage)
+            (lookupIORefMap notebookStorage)
+        )
 
 -- save notebook --------------------------------------------------------------
 
@@ -76,9 +105,10 @@ saveEndpointErrorHandler ::
   SaveNotebookError ->
   m r
 saveEndpointErrorHandler = \case
-  SaveNotbookKernelNotFound -> errorWithCode err404 "kernel does not exist."
   TooManyBlocks -> errorWithCode err400 "number of blocks reached limit"
   MaxCodeLength -> errorWithCode err400 "code length limit reched"
+  NotebookNotFound -> errorWithCode err404 "notebook does not exist"
+  KernelDoesNotExist -> errorWithCode err400 "kernel does not exist"
 
 -- load notebook --------------------------------------------------------------
 
@@ -90,4 +120,15 @@ loadNotebookErrorHandler ::
   LoadNotebookError ->
   m r
 loadNotebookErrorHandler = \case
-  LoadNotebookKernelNotFound -> errorWithCode err404 "kernel does not exist."
+  LoadNotebookNotFound -> errorWithCode err404 "kernel does not exist."
+
+-- create notebook ------------------------------------------------------------
+
+type CreateNotebookEndpoint = Put '[JSON] (IdentifiedValue U.UUID Notebook)
+
+createNotebookErrorHandler ::
+  MonadError ServerError m =>
+  CreateNotebookError ->
+  m r
+createNotebookErrorHandler = \case
+  TooManyNotebooks n -> errorWithMessage err409 "too many notebooks exist" n

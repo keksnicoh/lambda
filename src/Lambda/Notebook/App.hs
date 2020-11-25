@@ -32,6 +32,7 @@ import Lambda.Notebook.Kernel.Header (HasMaxNumberOfKernels (..))
 import Lambda.Notebook.Kernel.Model (Register)
 import Lambda.Notebook.Persistance.Header
   ( HasNotebookMaxBlocks (..),
+    HasMaxNotebookNumber (..),
     HasNotebookMaxCodeSize (..),
     NotebookStorage,
   )
@@ -44,7 +45,8 @@ data Env = Env
     notebookMaxBlocks :: Int,
     notebookMaxCodeSize :: Int,
     notebookStorage :: IORef NotebookStorage,
-    maxNumberOfKernels :: Int
+    maxNumberOfKernels :: Int,
+    notebookMaxNumber :: Int
   }
 
 instance HasMaxNumberOfKernels Env where
@@ -79,3 +81,6 @@ instance HasNotebookMaxBlocks Env where
 
 instance HasNotebookMaxCodeSize Env where
   getNotebookMaxCodeSize = notebookMaxCodeSize
+
+instance HasMaxNotebookNumber Env where
+  getMaxNotebookNumber = notebookMaxNumber

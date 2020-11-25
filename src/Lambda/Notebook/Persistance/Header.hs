@@ -10,8 +10,11 @@ import Lambda.Notebook.Storage (InsertM)
 -- | notebooks are stored within a simple map
 type NotebookStorage = M.Map U.UUID Notebook
 
+-- | returns the number of notebooks in storage
+type NumberOfNotebooksM m = m Int
+
 -- | get notebook by uuid
-type LoadNotebookM m = U.UUID -> m (Maybe Notebook)
+type LookupNotebookM m = U.UUID -> m (Maybe Notebook)
 
 -- | persist notebook under certain uuid
 type SaveNotebookM m = InsertM U.UUID Notebook m
@@ -23,3 +26,6 @@ class HasNotebookMaxBlocks e where
 
 class HasNotebookMaxCodeSize e where
   getNotebookMaxCodeSize :: e -> Int
+
+class HasMaxNotebookNumber e where
+  getMaxNotebookNumber :: e -> Int

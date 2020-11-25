@@ -1,5 +1,11 @@
 # Changelog for lambda
 
+## 0.0.0
+
+## Unreleased changes
+
+- [25.11.2020]
+    - reconcept: Notebook persitance layer
 - [23.11.2020]
     - introduced persist API
     - introduced IORef Map Storage
@@ -20,5 +26,3 @@
       ad-hoc polymorphism in case of empty lists
     - identifiers are now parsed with a leading '#'
 - [14.11.2020] initial commit
-
-## Unreleased changes

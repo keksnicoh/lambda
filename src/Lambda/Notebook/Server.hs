@@ -56,6 +56,7 @@ notebookServer port = do
             notebookMaxBlocks = 10, -- XXX read from env
             notebookMaxCodeSize = 10000, -- XXX read from env
             notebookStorage = ioRefNotebook,
-            maxNumberOfKernels = 10 -- XXX read from env
+            maxNumberOfKernels = 10, -- XXX read from env
+            notebookMaxNumber = 10
           }
   Network.Wai.Handler.Warp.run port (notebookApp env)

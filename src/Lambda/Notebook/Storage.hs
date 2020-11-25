@@ -1,8 +1,21 @@
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DeriveGeneric #-}
+
 module Lambda.Notebook.Storage where
 
 import Control.Monad.IO.Class (MonadIO (..))
+import Data.Aeson (FromJSON, ToJSON)
 import Data.IORef (IORef, modifyIORef', newIORef, readIORef)
 import qualified Data.Map as M
+import GHC.Generics (Generic)
+
+--
+
+data IdentifiedValue k v = IdentifiedValue
+  { pk :: k,
+    value :: v
+  }
+  deriving (Generic, ToJSON, FromJSON)
 
 -- basic api ------------------------------------------------------------------
 

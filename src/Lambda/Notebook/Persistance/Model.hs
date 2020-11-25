@@ -4,6 +4,7 @@
 module Lambda.Notebook.Persistance.Model where
 
 import Data.Aeson (FromJSON, ToJSON)
+import qualified Data.UUID as U
 import GHC.Generics (Generic)
 
 data Block = Block
@@ -12,10 +13,11 @@ data Block = Block
   }
   deriving (Generic, ToJSON, FromJSON)
 
-newtype Notebook = Notebook
-  { blocks :: [Block]
+data Notebook = Notebook
+  { kernelPk :: Maybe U.UUID,
+    blocks :: [Block]
   }
   deriving (Generic, ToJSON, FromJSON)
 
 emptyNotebook :: Notebook
-emptyNotebook = Notebook []
+emptyNotebook = Notebook Nothing []
