@@ -5,7 +5,7 @@ module Lambda.Notebook.Dependencies where
 
 import Conduit (ConduitT)
 import Control.Monad.Except (ExceptT (..))
-import Control.Monad.IO.Class
+import Control.Monad.IO.Class ( MonadIO(liftIO) )
 import Data.Conduit.Internal
   ( ConduitT (ConduitT),
     Pipe (Done, HaveOutput, Leftover, NeedInput, PipeM),

@@ -40,10 +40,49 @@ basicsTutorial =
     { title = "Basics",
       blocks =
         [ emptyBlock
-            { code = "contract[(λx.x)a];"
+            { code = "- a variable\n;" ++ "a;"
             },
           emptyBlock
-            { code = "(λx.gx) [(λxy.y) / g];"
+            { code = "- an application\n;" ++ "ab;"
+            },
+            emptyBlock
+            { code = "- a lambda function\n;" ++ "λx.x;"
+            },
+          emptyBlock
+            { code = "- default application precedence\n;" ++ "(((ab)c)d);"
+            },
+          emptyBlock
+            { code = "a(b(cd));"
+            },
+          emptyBlock
+            { code = "\\x.x;"
+            },
+          emptyBlock
+            { code = "abc [b/a];"
+            },
+          emptyBlock
+            { code = "contract[(λx.x)y];"
+            },
+          emptyBlock
+            { code = "free[(λx.xy)];"
+            },
+          emptyBlock
+            { code = "bound[(λx.xy)];"
+            },
+          emptyBlock
+            { code = "(λx.xy) [(λxy.x)/y];"
+            },
+          emptyBlock
+            { code = "T=λxy.x;\nF=λxy.y;\n\nresolve[TFT];"
+            },
+          emptyBlock
+            { code = "contract[resolve[TFT]];"
+            },
+          emptyBlock
+            { code = "contract[2, resolve[TFT]];"
+            },
+          emptyBlock
+            { code = "contract[3,resolve[TFT]];"
             }
         ]
     }
@@ -54,7 +93,7 @@ commandsTutorial =
     { title = "Available Commands",
       blocks =
         [ emptyBlock
-            { code = "free[λxy.y];"
+            { code = "free[λx.xy];"
             },
           emptyBlock
             { code = "bound[λxy.y];"

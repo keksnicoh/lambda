@@ -60,6 +60,7 @@ data Expression
 data Statement
   = Expression Expression Statement
   | Assign String Expression Statement
+  | Comment String Statement
   | End
   deriving (Show, Eq)
 
@@ -158,6 +159,7 @@ eval cont (Expression stmt n) = do
   result <- expressionΣ cont stmt
   stdout $ render result
   eval cont n
+eval cont (Comment _ n) = eval cont n
 eval _ End = pure ()
 
 -- | creates a runtime value from an expression
@@ -309,6 +311,9 @@ handler =
         ( "free",
           wrap (pured . functionΣ L.free)
         ),
+        ( "bound",
+          wrap (pured . functionΣ L.bound)
+        ),
         ( "scope",
           wrap
             ( kleisliΣ
@@ -365,8 +370,15 @@ parse = P.parse langP ""
 langP :: Parser Statement
 langP = stmtP <*> contP <|> eofP
   where
-    stmtP = P.try assignP <|> P.try evalP
+    stmtP = P.try assignP <|> P.try evalP <|> P.try commentP
     contP = spacedP (P.oneOf ";") *> langP
+
+commentP :: Parser (Statement -> Statement)
+commentP = do
+  Comment <$> (P.spaces *> P.char '-' *> line)
+
+line :: Parser [Char]
+line = P.many $ P.noneOf "\n"
 
 evalP :: Parser (Statement -> Statement)
 evalP =

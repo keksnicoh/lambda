@@ -15,6 +15,7 @@ module Lambda.Lib.Lambda
     parse,
     expP,
     identifierP,
+    bound,
   )
 where
 
