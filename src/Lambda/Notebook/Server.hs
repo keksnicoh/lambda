@@ -15,8 +15,12 @@ import Lambda.Notebook.Persistance.API
   ( PersistanceAPI,
     persistanceHandler,
   )
+import Lambda.Notebook.Persistance.Action.Tutorial
+  ( createTutorialNotebooks,
+  )
 import Lambda.Notebook.Persistance.Header (NotebookStorage)
 import Lambda.Notebook.Persistance.Model ()
+import Lambda.Notebook.Storage (insertIORefMap)
 import Network.Wai.Handler.Warp (Port, run)
 import Servant
   ( Application,
@@ -46,17 +50,28 @@ notebookApp s =
 
 notebookServer :: Port -> IO ()
 notebookServer port = do
+  -- bootstrap application environment
+  env <- createEnvironment
+
+  -- create some tutorial notebooks
+  createTutorialNotebooks (insertIORefMap (notebookStorage env))
+
+  -- warpppp )))) ))   )  )
+  Network.Wai.Handler.Warp.run port (notebookApp env)
+
+createEnvironment :: IO Env
+createEnvironment = do
   let register = M.empty :: (Register IORef)
       notebook = M.empty :: NotebookStorage
   ioRef <- newIORef register
   ioRefNotebook <- newIORef notebook
-  let env =
-        Env
-          { kernels = ioRef,
-            notebookMaxBlocks = 10, -- XXX read from env
-            notebookMaxCodeSize = 10000, -- XXX read from env
-            notebookStorage = ioRefNotebook,
-            maxNumberOfKernels = 10, -- XXX read from env
-            notebookMaxNumber = 10
-          }
-  Network.Wai.Handler.Warp.run port (notebookApp env)
+
+  pure $
+    Env
+      { kernels = ioRef,
+        notebookMaxBlocks = 10, -- XXX read from env
+        notebookMaxCodeSize = 10000, -- XXX read from env
+        notebookStorage = ioRefNotebook,
+        maxNumberOfKernels = 10, -- XXX read from env
+        notebookMaxNumber = 10
+      }

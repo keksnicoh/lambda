@@ -5,10 +5,13 @@ module Lambda.Notebook.Dependencies where
 
 import Conduit (ConduitT)
 import Control.Monad.Except (ExceptT (..))
+import Control.Monad.IO.Class
 import Data.Conduit.Internal
   ( ConduitT (ConduitT),
     Pipe (Done, HaveOutput, Leftover, NeedInput, PipeM),
   )
+import qualified Data.UUID as U
+import qualified Data.UUID.V4 as U
 import Servant (ToSourceIO (..))
 import qualified Servant.Types.SourceT as S
 
@@ -17,6 +20,9 @@ class HasM t m where
 
 instance (Functor m, HasM a m) => HasM a (ExceptT e m) where
   getM = ExceptT (Right <$> getM)
+
+instance HasM U.UUID IO where
+  getM = liftIO U.nextRandom
 
 instance ToSourceIO o (ConduitT i o IO ()) where
   toSourceIO (ConduitT con) = S.SourceT ($ go (con Done))

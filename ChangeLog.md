@@ -4,6 +4,8 @@
 
 ## Unreleased changes
 
+- [26.11.2020]
+    - add tutorial notebooks
 - [25.11.2020]
     - add list notebooks endpoint
     - reconcept: Notebook persitance layer

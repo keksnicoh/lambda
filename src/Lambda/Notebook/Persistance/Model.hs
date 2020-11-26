@@ -22,3 +22,6 @@ data Notebook = Notebook
 
 emptyNotebook :: Notebook
 emptyNotebook = Notebook "Untitled" Nothing []
+
+emptyBlock :: Block
+emptyBlock = Block "" Nothing
