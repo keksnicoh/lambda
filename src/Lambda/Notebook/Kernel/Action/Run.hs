@@ -12,8 +12,6 @@ import Conduit (yield)
 import Control.Monad (when)
 import Control.Monad.Except (MonadError (throwError))
 import Data.Aeson (FromJSON)
-import Data.List (intercalate)
-import qualified Data.Map as M
 import qualified Data.Time as T
 import qualified Data.UUID as U
 import GHC.Generics (Generic)
@@ -87,15 +85,16 @@ runAction
       kernelMapper (Right newScope) = kernelSucces newScope
       kernelMapper (Left _) = kernelRuntimeError
 
-      yieldResult (Right newScope) = yieldSuccess newScope
+      yieldResult (Right _) = yieldSuccess
       yieldResult (Left runtimeError) = yieldError runtimeError
 
-yieldSuccess :: Monad m => M.Map String a -> StdOut m ()
-yieldSuccess runtimeScope = do
-  yield $ "(exit ok; scope: " ++ intercalate ", " (M.keys runtimeScope) ++ ")"
+yieldSuccess :: Monad m => StdOut m ()
+yieldSuccess = do
+  yield "__EXIT0"
 
 yieldError :: Monad m => String -> StdOut m ()
 yieldError runtimeError = do
+  yield "__EXIT1"
   yield "================================================"
   yield " Runtime Error"
   yield "================================================"
