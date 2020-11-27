@@ -19,7 +19,6 @@ import Control.Monad (join, void)
 import Control.Monad.Except (MonadError (throwError))
 import Control.Monad.State (MonadState, gets, modify)
 import Data.Data (type (:~:) (Refl))
-import Data.Functor (($>))
 import Data.List (intercalate)
 import qualified Data.Map as M
 import Data.Singletons (Proxy (..), Sing, SingKind (fromSing), withSomeSing)
@@ -68,6 +67,7 @@ data Statement
 
 instance Semigroup Statement where
   (Expression a l1) <> l2 = Expression a (l1 <> l2)
+  (Comment a l1) <> l2 = Comment a (l1 <> l2)
   (Assign a b l1) <> l2 = Assign a b (l1 <> l2)
   End <> l2 = l2
 
@@ -263,7 +263,7 @@ createHandler ::
   (String -> FunctionΣ String m)
 createHandler register fname args =
   case M.lookup fname register of
-    Just f -> case f args of
+    Just f -> case f args of -- xxx left map?
       Right r -> Right r
       Left err -> Left (adHocErr err)
     Nothing -> Left functionErr
@@ -363,27 +363,40 @@ render ((SDList a) :&: s) =
 -- parser =====================================================================
 
 parse :: String -> Either P.ParseError Statement
-parse = P.parse langP ""
+parse = P.parse langP "" . (++ "\n")
 
 -- statement parsers ----------------------------------------------------------
 
 langP :: Parser Statement
-langP = stmtP <*> contP <|> eofP
+langP = stmtP <*> nextStmtP <|> eofP
   where
     stmtP = P.try assignP <|> P.try evalP <|> P.try commentP
-    contP = spacedP (P.oneOf ";") *> langP
+    delimiter = P.many (P.oneOf " \t") *> P.oneOf "\n" *> P.spaces
+    nextStmtP = delimiter *> langP
 
+-- | parse comments
+--
+--     -- comment
+--       -- also valid comment
 commentP :: Parser (Statement -> Statement)
-commentP = do
-  Comment <$> (P.spaces *> P.char '-' *> line)
-
-line :: Parser [Char]
-line = P.many $ P.noneOf "\n"
+commentP =
+  Comment
+    <$> ( P.spaces
+            *> P.char '-'
+            *> P.char '-'
+            *> P.many (P.noneOf "\n")
+        )
 
 evalP :: Parser (Statement -> Statement)
 evalP =
   Expression <$> expressionP
 
+-- | assignment
+--
+--  ## examples
+--
+--  - a=b
+--  - b=contract[(\x.x)a]
 assignP :: Parser (Statement -> Statement)
 assignP =
   Assign
@@ -407,7 +420,7 @@ intP = Number . read <$> P.many1 P.digit
 
 -- | parse list expressions
 --
--- ## h2 examples
+-- ## examples
 --
 -- - list of lambda expressions: {λx.x, abc}
 -- - list with explict type: Int{1, 2}
@@ -443,7 +456,7 @@ functionP :: Parser Expression
 functionP =
   Function
     <$> nameP
-    <*> wrappedP (spacedP (P.char '[')) (spacedP (P.char ']')) argumentsP
+    <*> wrappedP (spacedP (P.char '[')) (P.spaces *> P.char ']') argumentsP
   where
     nameP = P.many (P.oneOf validFuncChars)
     argumentsP = P.chainr1 (pure <$> expressionP) commaP
@@ -458,7 +471,7 @@ functionP =
 -- ...
 expressionP :: Parser Expression
 expressionP =
-  foldr (\(a, b) y -> Substitution y a b) <$> (expP <* P.spaces) <*> P.try subListP
+  foldr (\(a, b) y -> Substitution y a b) <$> expP <*> P.try subListP
   where
     expP =
       P.try functionP
@@ -469,7 +482,7 @@ expressionP =
 
     -- [a/b], [a/b][c/d], ...
     subListP :: Parser [(L.Exp, L.Identifier)]
-    subListP = P.chainl ((: []) <$> (subP <* P.spaces)) (P.spaces $> (++)) []
+    subListP = P.chainl ((: []) <$> subP) (pure (++)) []
 
     -- [a/b]
     subP =

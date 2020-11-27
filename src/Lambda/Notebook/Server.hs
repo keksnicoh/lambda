@@ -69,7 +69,7 @@ createEnvironment = do
   pure $
     Env
       { kernels = ioRef,
-        notebookMaxBlocks = 10, -- XXX read from env
+        notebookMaxBlocks = 1000, -- XXX read from env
         notebookMaxCodeSize = 10000, -- XXX read from env
         notebookStorage = ioRefNotebook,
         maxNumberOfKernels = 10, -- XXX read from env

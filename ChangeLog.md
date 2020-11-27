@@ -4,6 +4,8 @@
 
 ## Unreleased changes
 
+- [27.11.2020]
+    - removed semicolons
 - [26.11.2020]
     - add tutorial notebooks
 - [25.11.2020]

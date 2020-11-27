@@ -40,28 +40,50 @@ basicsTutorial =
     { title = "Basics",
       blocks =
         [ emptyBlock
-            { code = "- a variable\n;" ++ "a;"
+            { code =
+                "-- variables have one character\n"
+                  ++ "x"
             },
           emptyBlock
-            { code = "- an application\n;" ++ "ab;"
-            },
-            emptyBlock
-            { code = "- a lambda function\n;" ++ "λx.x;"
-            },
-          emptyBlock
-            { code = "- default application precedence\n;" ++ "(((ab)c)d);"
+            { code =
+                "-- expressions are applied with left precedence\n"
+                  ++ "(ab)c\n"
+                  ++ "a(bc)"
             },
           emptyBlock
-            { code = "a(b(cd));"
+            { code =
+                "-- subsitution is the only transformation in lambda calculus"
+                  ++ ", here we substitute e for b in the expression abc:\n"
+                  ++ "abc [e/b]\n"
+                  ++ "-- multiple substitutions:\n"
+                  ++ "abc [e/b][a/c]"
             },
           emptyBlock
-            { code = "\\x.x;"
+            { code =
+                "-- variables are bound within lambda functions "
+                  ++ "λ<argument>.<expression>\n"
+                  ++ "λx.ax"
             },
           emptyBlock
-            { code = "abc [b/a];"
+            { code =
+                "-- variables which are not bound to a lambda function are"
+                  ++ "\"free\"\n"
+                  ++ "free[λx.ax]\n\n"
+                  ++ "--here, x is bound\n"
+                  ++ "bound[λx.ax]"
             },
           emptyBlock
-            { code = "contract[(λx.x)y];"
+            { code =
+                "-- any expression can be applied to a lambda function\n"
+                  ++ "(λx.ax)b\n\n"
+                  ++ "-- beta reduction contracts an expression\n"
+                  ++ "contract[(λx.ax)b]"
+            },
+          emptyBlock
+            { code =
+                "-- functions of multiple arguments are implemented "
+                  ++ "through currying\n"
+                  ++ "λx.λy.λz.zyx"
             },
           emptyBlock
             { code = "free[(λx.xy)];"
