@@ -37,74 +37,75 @@ createTutorialNotebooks persistHandler = do
 basicsTutorial :: Notebook
 basicsTutorial =
   emptyNotebook
-    { title = "Basics",
+    { title = "Tutorial 1 - Basics",
       blocks =
         [ emptyBlock
             { code =
-                "-- variables have one character\n"
+                "-- a variable is given by a single character\n"
                   ++ "x"
             },
           emptyBlock
             { code =
-                "-- expressions are applied with left precedence\n"
+                "-- variables can be applied to each other.\n"
+                  ++ "-- here the variable b is applied to a\n"
+                  ++ "ab\n"
+                  ++ "-- whitespaces are allowed\n"
+                  ++ "  a   b"
+            },
+          emptyBlock
+            { code =
+                "-- application is left associative\n"
                   ++ "(ab)c\n"
                   ++ "a(bc)"
             },
           emptyBlock
             { code =
-                "-- subsitution is the only transformation in lambda calculus"
-                  ++ ", here we substitute e for b in the expression abc:\n"
+                "-- subsitution is the only available transformation.\n"
+                  ++ "Substitute e for b in the expression abc:\n"
                   ++ "abc [e/b]\n"
                   ++ "-- multiple substitutions:\n"
                   ++ "abc [e/b][a/c]"
             },
           emptyBlock
             { code =
-                "-- variables are bound within lambda functions "
+                "-- The λ sign denotes a lambda abstraction. "
                   ++ "λ<argument>.<expression>\n"
-                  ++ "λx.ax"
+                  ++ "λx.ax\n"
+                  ++ "--for convenience one can also use backslash\n"
+                  ++ "\\x.ax"
             },
           emptyBlock
             { code =
-                "-- variables which are not bound to a lambda function are"
+                "-- variables which are not bound to a lambda abstraction are"
                   ++ "\"free\"\n"
                   ++ "free[λx.ax]\n\n"
-                  ++ "--here, x is bound\n"
+                  ++ "-- in contrast, bound variables are\n"
                   ++ "bound[λx.ax]"
             },
           emptyBlock
             { code =
-                "-- any expression can be applied to a lambda function\n"
-                  ++ "(λx.ax)b\n\n"
-                  ++ "-- beta reduction contracts an expression\n"
-                  ++ "contract[(λx.ax)b]"
+                "-- contraction of abstractions is done through substitution:\n"
+                  ++ "contract[(λx.ax)b]\n"
+                  ++ "-- which is equal to\n"
+                  ++ "ax[b/x]"
             },
           emptyBlock
             { code =
-                "-- functions of multiple arguments are implemented "
-                  ++ "through currying\n"
+                "-- multiple arguments are implemented by chaining lambda \n"
+                  ++ "functions (currying)\n"
                   ++ "λx.λy.λz.zyx"
             },
           emptyBlock
-            { code = "free[(λx.xy)];"
+            { code =
+                "-- any result can be assigned to variables to resolve"
+                  ++ " free variables\n"
+                  ++ "a=b\n"
             },
           emptyBlock
-            { code = "bound[(λx.xy)];"
-            },
-          emptyBlock
-            { code = "(λx.xy) [(λxy.x)/y];"
-            },
-          emptyBlock
-            { code = "T=λxy.x;\nF=λxy.y;\n\nresolve[TFT];"
-            },
-          emptyBlock
-            { code = "contract[resolve[TFT]];"
-            },
-          emptyBlock
-            { code = "contract[2, resolve[TFT]];"
-            },
-          emptyBlock
-            { code = "contract[3,resolve[TFT]];"
+            { code =
+                "-- free variables can be resolved by the "
+                  ++ "existing scope \n"
+                  ++ "resolve[aca]"
             }
         ]
     }
@@ -115,10 +116,30 @@ commandsTutorial =
     { title = "Available Commands",
       blocks =
         [ emptyBlock
-            { code = "free[λx.xy];"
+            { code =
+                "-- contract[]\n"
+                  ++ "--\n"
+                  ++ "-- performs beta reduction on the given expression\n"
+                  ++ "contract[(λx.x)(λx.x)a]\n\n"
+                  ++ "-- multiple contractions\n"
+                  ++ "contract[2, (λx.x)(λx.x)a]\n"
             },
           emptyBlock
-            { code = "bound[λxy.y];"
+            { code =
+                "-- resolve[]\n"
+                  ++ "--\n"
+                  ++ "-- satisfies free variable with existing scope.\n"
+                  ++ "a=λx.x\n"
+                  ++ "resolve[ab]"
+            },
+          emptyBlock
+            { code = "hnfPrintSteps[λxy.y]"
+            },
+          emptyBlock
+            { code = "scope[λxy.y]"
+            },
+          emptyBlock
+            { code = "free[λxy.y]"
             }
         ]
     }
