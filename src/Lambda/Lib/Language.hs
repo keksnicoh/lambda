@@ -8,6 +8,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 
@@ -15,11 +16,12 @@ module Lambda.Lib.Language where
 
 import Conduit (ConduitT, yield)
 import Control.Applicative (Alternative ((<|>)), liftA2)
+import Control.Monad
 import Control.Monad (join, void)
 import Control.Monad.Except (MonadError (throwError))
-import Control.Monad.State (MonadState, gets, modify)
+import Control.Monad.State (MonadState, get, gets, modify)
 import Data.Data (type (:~:) (Refl))
-import Data.List (intercalate)
+import Data.List (intercalate, intersect)
 import qualified Data.Map as M
 import Data.Singletons (Proxy (..), Sing, SingKind (fromSing), withSomeSing)
 import Data.Singletons.Decide (Decision (Disproved, Proved), SDecide (..))
@@ -44,6 +46,7 @@ import qualified Lambda.Lib.Lambda as L
 import qualified Text.Parsec as P
 import Text.Parsec.String (Parser)
 import Util (HList (HNil))
+import Data.Functor (($>))
 
 -- Language AST ===============================================================
 
@@ -103,12 +106,25 @@ repeatExpM f a = do
     then return a
     else repeatExpM f next
 
+repeatExp :: Eq a => (a -> a) -> a -> a
+repeatExp f a =
+  let r = f a
+   in if r == a
+        then a
+        else repeatExp f r
+
 inFreeVars :: L.Exp -> L.Identifier -> Bool
 inFreeVars expr k = k `elem` L.free expr
 
 betan :: Int -> L.Exp -> L.Exp
 betan 0 expr = expr
 betan n expr = betan (n - 1) $ L.β expr
+
+run :: (MonadState Scope m) => L.Exp -> m L.Exp
+run exp = do
+  rexp <- repeatExpM resolve exp
+  let hnf = repeatExp L.β rexp
+  unfree hnf
 
 applyScope ::
   (MonadState Scope m) =>
@@ -141,6 +157,31 @@ hnfPrintSteps l = hnfPrintSteps' l
               hnfPrintSteps' (n - 1) next
             else pure next
 
+fenk :: MonadState Scope m => L.Exp -> m L.Exp
+fenk exp = do
+  r <- resolve exp
+  pure $ L.β r
+
+unfree :: (MonadState Scope m) => L.Exp -> m L.Exp
+unfree exp = do
+  scope <- get
+  newScope <- forM (M.toList scope) \(k, v) ->
+    (k,) <$> repeatExpM fenk v
+  --stdout $ show newScope
+  pure $ go newScope exp
+  where
+    go [] exp = exp
+    go ((k, sexp) : ss) exp = go ss $ walk [] k sexp exp
+    walk f k sexp exp =
+      if null (f `intersect` L.free exp) && sexp == exp
+        then L.Var k
+        else case exp of
+          L.Lam x se -> L.Lam x $ walk (x : f) k sexp se
+          L.App se1 se2 -> L.App (walk f k sexp se1) (walk f k sexp se2)
+          x -> x
+
+-- walk k sexp  | x == k = exp
+
 -- evaluator ------------------------------------------------------------------
 
 -- | evaluates a statement
@@ -157,6 +198,10 @@ eval cont (Assign name stmt n) = do
     _ -> error "can only assign lambda expressions to variables"
 eval cont (Expression stmt n) = do
   result <- expressionΣ cont stmt
+  result <- case result of
+    (SDExp :&: exp) -> do
+      (SDExp :&:) <$> run exp
+    other -> pure other
   stdout $ render result
   eval cont n
 eval cont (Comment _ n) = eval cont n
@@ -307,6 +352,12 @@ handler =
         ),
         ( "hnfPrintSteps",
           wrap (kleisliΣ (Proxy @'[Int, L.Exp]) (Proxy @L.Exp) hnfPrintSteps)
+        ),
+        ( "run",
+          wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) run)
+        ),
+        ( "unfree",
+          wrap (kleisliΣ (Proxy @'[L.Exp]) (Proxy @L.Exp) unfree)
         ),
         ( "free",
           wrap (pured . functionΣ L.free)

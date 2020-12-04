@@ -1,3 +1,4 @@
+{-# LANGUAGE BlockArguments #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
 
@@ -16,12 +17,14 @@ module Lambda.Lib.Lambda
     expP,
     identifierP,
     bound,
+    equal,
   )
 where
 
 import Control.Applicative (many, (<|>))
 import Data.Aeson (ToJSON (toJSON))
 import Data.List (find, intersect, nub, sort)
+import qualified Data.Map as M
 import Data.Maybe (fromMaybe)
 import Data.String (IsString (..))
 import qualified Text.Parsec as P
@@ -42,7 +45,6 @@ data Exp
   = Var Identifier
   | Lam Identifier Exp
   | App Exp Exp
-  deriving (Eq)
 
 (@:) :: Exp -> Exp -> Exp
 (@:) = App
@@ -57,23 +59,32 @@ infixr 8 >:
 -- haskell API ----------------------------------------------------------------
 
 instance Show Exp where
-  show (Var n) = n
+  show (Var n) = case n of
+    [c] -> [c]
+    s -> "_" ++ s ++ " "
   show (Lam n e) = "λ" ++ go n e
     where
       go sn (Lam m se) = sn ++ go m se
       go sn se = sn ++ "." ++ show se
-  show (App (Var n1) (Var n2)) = n1 ++ n2
-  show (App (Var n1) l) = n1 ++ "(" ++ show l ++ ")"
-  show (App l1@(Lam _ _) (Var n1)) = "(" ++ show l1 ++ ")" ++ n1
+  show (App (Var n1) (Var n2)) = renderVar n1 ++ renderVar n2
+  show (App (Var n1) l) = renderVar n1 ++ "(" ++ show l ++ ")"
+  show (App l1@(Lam _ _) (Var n1)) = "(" ++ show l1 ++ ")" ++ renderVar n1
   show (App l1@(Lam _ _) e2) = "(" ++ show l1 ++ ")" ++ "(" ++ show e2 ++ ")"
   show (App e1 l2@(Lam _ _)) = show e1 ++ "(" ++ show l2 ++ ")"
   show (App x y) = show x ++ show y
+
+renderVar :: String -> String
+renderVar [c] = [c]
+renderVar s = "_" ++ s ++ " "
 
 instance IsString Exp where
   fromString = Var
 
 instance ToJSON Exp where
   toJSON p = toJSON $ show p
+
+instance Eq Exp where
+  (==) = equal
 
 -- operations and objects from lambda calculus --------------------------------
 
@@ -194,16 +205,41 @@ alpha x n = \case
   -- (M1 M2)[x := N] = (M1[x := N]) (M2[x := N])
   App m1 m2 -> App (alpha x n m1) (alpha x n m2)
 
+equal :: Exp -> Exp -> Bool
+equal = go 0 M.empty
+  where
+    go :: Int -> M.Map Identifier Int -> Exp -> Exp -> Bool
+    go _ scope (Var n1) (Var n2)
+      | n1 == n2 = True
+      | otherwise = getOrElse False $ (==) <$> M.lookup n1 scope <*> M.lookup n2 scope
+    go n scope (App e11 e12) (App e21 e22) =
+      go n scope e11 e21 && go n scope e12 e22
+    go n scope (Lam x1 e1) (Lam x2 e2) =
+      go (n + 1) (M.insert x1 n $ M.insert x2 n scope) e1 e2
+    go _ _ _ _ = False
+
+getOrElse :: p -> Maybe p -> p
+getOrElse _ (Just a) = a
+getOrElse b _ = b
+
 -- parser ---------------------------------------------------------------------
 
 parse :: String -> Either P.ParseError Exp
 parse = P.parse expP ""
 
 identifierP :: Parser Identifier
-identifierP =
-  (:)
-    <$> P.oneOf "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
-    <*> P.many P.digit
+identifierP = P.try singleCharIdentifierP <|> mutlipleCharIdentifierP
+  where
+    mutlipleCharIdentifierP =
+      P.char '_'
+        *> P.many1 (P.oneOf validIdentifierChars <|> P.digit)
+    singleCharIdentifierP =
+      (:)
+        <$> P.oneOf validIdentifierChars
+        <*> P.many P.digit
+
+validIdentifierChars :: [Char]
+validIdentifierChars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZβλΣσϕφ∧∨¬Φ"
 
 varP :: Parser Exp
 varP = Var <$> identifierP
